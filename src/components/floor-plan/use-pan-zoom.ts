@@ -46,6 +46,19 @@ export function usePanZoom(initial?: Rect) {
     null,
   );
   /**
+   * The active touch points on the plan. Pointer events are used instead of
+   * touch events so the gesture has the same event path as the existing
+   * one-finger pan and keeps working through the seat buttons.
+   */
+  const pointers = useRef(new Map<number, { x: number; y: number; type: string }>());
+  const pinch = useRef<{
+    ids: [number, number];
+    distance: number;
+    midX: number;
+    midY: number;
+    transform: Transform;
+  } | null>(null);
+  /**
    * A press that landed on a SEAT, not yet proven to be a drag.
    *
    * Pointer capture is deliberately not requested for this pointer until it
@@ -140,6 +153,34 @@ export function usePanZoom(initial?: Rect) {
     });
   }, []);
 
+  const startPinch = useCallback((el: HTMLElement) => {
+    const touches = [...pointers.current.entries()].filter(([, point]) => point.type === "touch");
+    if (touches.length < 2) return;
+    const [[firstId, first], [secondId, second]] = touches.slice(-2);
+    const dx = second.x - first.x;
+    const dy = second.y - first.y;
+    const distance = Math.hypot(dx, dy);
+    // Identical coordinates cannot define a scale. Wait for the first move
+    // rather than allowing a divide-by-zero jump.
+    if (distance < 1) return;
+
+    pending.current = null;
+    drag.current = null;
+    suppressClick.current = true;
+    trySetPointerCapture(el, firstId);
+    trySetPointerCapture(el, secondId);
+    setTransform((transform) => {
+      pinch.current = {
+        ids: [firstId, secondId],
+        distance,
+        midX: (first.x + second.x) / 2,
+        midY: (first.y + second.y) / 2,
+        transform,
+      };
+      return transform;
+    });
+  }, []);
+
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Real controls overlaid on the plan — zoom buttons, the editor's form
     // fields — must never start a pan-or-tap gesture. `button:not([data-seat])`
@@ -149,6 +190,12 @@ export function usePanZoom(initial?: Rect) {
     const target = e.target as HTMLElement;
     if (target.closest("button:not([data-seat]), a, input, select, textarea")) {
       return;
+    }
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
+    if (e.pointerType === "touch") {
+      const el = containerRef.current;
+      if (el) startPinch(el);
+      if (pinch.current) return;
     }
     suppressClick.current = false;
 
@@ -164,9 +211,32 @@ export function usePanZoom(initial?: Rect) {
       drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, tx: t.x, ty: t.y };
       return t;
     });
-  }, []);
+  }, [startPinch]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const point = pointers.current.get(e.pointerId);
+    if (point) {
+      point.x = e.clientX;
+      point.y = e.clientY;
+    }
+    const activePinch = pinch.current;
+    if (activePinch && activePinch.ids.includes(e.pointerId)) {
+      const first = pointers.current.get(activePinch.ids[0]);
+      const second = pointers.current.get(activePinch.ids[1]);
+      if (!first || !second) return;
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      if (distance < 1) return;
+      const scale = Math.min(
+        MAX_SCALE,
+        Math.max(MIN_SCALE, activePinch.transform.scale * (distance / activePinch.distance)),
+      );
+      const midX = (first.x + second.x) / 2;
+      const midY = (first.y + second.y) / 2;
+      const contentX = (activePinch.midX - activePinch.transform.x) / activePinch.transform.scale;
+      const contentY = (activePinch.midY - activePinch.transform.y) / activePinch.transform.scale;
+      setTransform({ scale, x: midX - contentX * scale, y: midY - contentY * scale });
+      return;
+    }
     const p = pending.current;
     if (p && p.id === e.pointerId) {
       const dx = e.clientX - p.x;
@@ -196,6 +266,32 @@ export function usePanZoom(initial?: Rect) {
   }, []);
 
   const endDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const activePinch = pinch.current;
+    const wasPinching = activePinch?.ids.includes(e.pointerId) ?? false;
+    pointers.current.delete(e.pointerId);
+    if (wasPinching) {
+      // A cancelled system gesture can revoke capture before this event is
+      // delivered. Releasing an already-revoked capture throws in some mobile
+      // browsers, which must not turn a finished pinch into an app error.
+      try {
+        containerRef.current?.releasePointerCapture?.(e.pointerId);
+      } catch {
+        // There is nothing left to capture or release.
+      }
+      const remaining = activePinch
+        ? activePinch.ids.find((id) => id !== e.pointerId)
+        : undefined;
+      pinch.current = null;
+      const point = remaining === undefined ? undefined : pointers.current.get(remaining);
+      if (point) {
+        // Continue naturally as a pan when one finger leaves the screen.
+        setTransform((t) => {
+          drag.current = { id: remaining!, x: point.x, y: point.y, tx: t.x, ty: t.y };
+          return t;
+        });
+      }
+      return;
+    }
     if (pending.current?.id === e.pointerId) {
       // Released inside the slop radius: a genuine tap. This pointer was
       // never captured, so the seat's own native click fires on its own —

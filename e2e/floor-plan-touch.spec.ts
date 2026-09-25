@@ -63,6 +63,38 @@ async function touchDrag(
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
+/** A real two-finger pinch, expanding around a stable centre point. */
+async function touchPinchOut(cdp: CDPSession, x: number, y: number, steps = 8) {
+  const start = 24;
+  const end = 88;
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: x - start, y, id: 1 }],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [
+      { x: x - start, y, id: 1 },
+      { x: x + start, y, id: 2 },
+    ],
+  });
+  for (let i = 1; i <= steps; i++) {
+    const distance = start + ((end - start) * i) / steps;
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        { x: x - distance, y, id: 1 },
+        { x: x + distance, y, id: 2 },
+      ],
+    });
+  }
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [{ x: x + end, y, id: 2 }],
+  });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
 /** One real, trusted tap. */
 async function touchTap(cdp: CDPSession, x: number, y: number) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
@@ -159,6 +191,19 @@ test.describe("touch on the plan, at 390px", () => {
     const after = await layerTransform(page);
 
     expect(after, "the plan did not pan vertically").not.toBe(before);
+  });
+
+  test("a two-finger pinch out zooms the plan", async ({ page, context }) => {
+    await openFloor(page);
+    const cdp = await context.newCDPSession(page);
+    const canvas = page.locator('[role="application"]');
+    const box = (await canvas.boundingBox())!;
+    const before = await layerTransform(page);
+
+    await touchPinchOut(cdp, box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(300);
+
+    expect(await layerTransform(page), "the pinch gesture did not zoom the plan").not.toBe(before);
   });
 
   test("a small movement stays a tap, not a pan (the slop radius)", async ({ page, context }) => {
