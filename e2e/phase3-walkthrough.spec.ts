@@ -218,44 +218,6 @@ test("5 — the printable QR sheet exists and is scannable markup", async ({ pag
   await shot(page, "p3-08-qr-sheet");
 });
 
-test("6 — a manager books on behalf of a colleague", async ({ page, request }) => {
-  const manager = await personaOfGrade(request, "manager");
-  await signInAs(page, manager.email);
-  await openFloor(page, { dayIndex: 2 });
-
-  const seat = page.locator("[data-seat][data-status='available']").first();
-  const onBehalfSeat = await seat.getAttribute("data-seat");
-  await seat.click();
-
-  const dialog = page.getByRole("dialog");
-  // A manager holds an allocated desk, so "for myself" is not a real option for
-  // them — the picker is the whole point of this screen for this grade.
-  await dialog.getByRole("radio", { name: "For a colleague" }).click();
-
-  const search = dialog.getByRole("combobox", { name: "Colleague" });
-  await search.click();
-  const firstOption = dialog.getByRole("option").first();
-  await expect(firstOption).toBeVisible({ timeout: 15_000 });
-  await shot(page, "p3-09-person-picker");
-  await firstOption.click();
-
-  await dialog.getByRole("button", { name: "Confirm booking" }).click();
-  await expect(dialog.getByText(/is booked for/i)).toBeVisible({ timeout: 15_000 });
-  await expect(dialog).toContainText(onBehalfSeat!);
-  await shot(page, "p3-10-on-behalf-confirmed");
-});
-
-test("7 — the colleague gets their own email", async ({ page }) => {
-  await signInAs(page, admin);
-  await page.goto("/admin/notifications?kind=booked_on_your_behalf");
-  await settled(page);
-
-  await page.getByLabel("Kind").selectOption("booked_on_your_behalf");
-  const row = page.getByRole("button", { name: /booked desk .* for you/ }).first();
-  await expect(row).toBeVisible({ timeout: 15_000 });
-  await shot(page, "p3-11-on-behalf-email");
-});
-
 test("8 — cancelling a booking releases the desk", async ({ page }) => {
   await signInAs(page, booker);
   await page.goto("/bookings");

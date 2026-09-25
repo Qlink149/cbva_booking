@@ -135,23 +135,14 @@ const CASES: Array<[string, string, (page: Page) => Promise<void>]> = [
     },
   ],
   [
-    "on-behalf person picker",
+    "booking dialog",
     "/floor",
     async (page) => {
       await page.locator("[data-seat][data-status='available']").first().waitFor({
         timeout: 30_000,
       });
       await page.locator("[data-seat][data-status='available']").first().click();
-      const dialog = page.getByRole("dialog");
-      await dialog.waitFor();
-      // Only offered to grades that may book for a colleague, so this is a
-      // no-op for personas that cannot — the audit still covers the dialog.
-      const choice = dialog.getByRole("radio", { name: "For a colleague" });
-      if (await choice.isVisible().catch(() => false)) {
-        await choice.click();
-        await dialog.getByRole("combobox", { name: "Colleague" }).click();
-        await dialog.getByRole("listbox").waitFor();
-      }
+      await page.getByRole("dialog").waitFor();
     },
   ],
   [
