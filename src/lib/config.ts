@@ -22,6 +22,8 @@ const serverEnvSchema = z.object({
    * worth a required variable — and checked at the route in production.
    */
   CRON_SECRET: z.string().min(1).optional(),
+  /** HMAC secret for the password-auth session cookie. */
+  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters.").optional(),
   /** Origin the printed desk QR codes point at. */
   NEXT_PUBLIC_APP_URL: z.string().min(1).optional(),
 });
@@ -35,6 +37,7 @@ export interface ServerEnv {
   databaseUrl: string;
   databaseUrlDirect: string;
   cronSecret: string | null;
+  jwtSecret: string | null;
   appUrl: string;
 }
 
@@ -52,9 +55,23 @@ export function serverEnv(): ServerEnv {
     databaseUrl: parsed.data.DATABASE_URL,
     databaseUrlDirect: parsed.data.DATABASE_URL_UNPOOLED ?? parsed.data.DATABASE_URL,
     cronSecret: parsed.data.CRON_SECRET ?? null,
+    jwtSecret: parsed.data.JWT_SECRET ?? null,
     appUrl: parsed.data.NEXT_PUBLIC_APP_URL ?? "http://127.0.0.1:8081",
   };
   return cached;
+}
+
+/**
+ * Password authentication is intentionally opt-in: demo role switching still
+ * works without a secret, while an environment that enables password login
+ * fails loudly instead of signing cookies with a weak fallback.
+ */
+export function jwtSecret(): string {
+  const secret = serverEnv().jwtSecret;
+  if (!secret) {
+    throw new Error("JWT_SECRET is required to use password authentication.");
+  }
+  return secret;
 }
 
 /** The IANA zone every date in this product is reasoned about in. */

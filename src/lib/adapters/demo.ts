@@ -9,6 +9,7 @@ import type {
   OutboundMail,
 } from "@/lib/adapters/types";
 import type { BadgeEvent, RoomBooking, User } from "@/lib/db/schema";
+import { JWT_COOKIE_NAME, verifyJwt } from "@/lib/auth/jwt";
 
 /** Cookie the role switcher writes. Value is a seeded user's email. */
 export const ROLE_COOKIE = "cbva_role";
@@ -20,6 +21,28 @@ export const ROLE_COOKIE = "cbva_role";
 export class DemoAuthProvider implements AuthProvider {
   async currentUser(): Promise<User | null> {
     const jar = await cookies();
+    const token = jar.get(JWT_COOKIE_NAME)?.value;
+
+    // A password-authenticated demo user takes precedence over the convenience
+    // role switcher. The role-switch endpoint explicitly clears this cookie
+    // when a presenter chooses another representative person.
+    if (token) {
+      let payload = null;
+      try {
+        payload = verifyJwt(token);
+      } catch {
+        // A stale cookie must not make a demo unavailable after its secret is
+        // rotated or a local developer has not configured password auth.
+      }
+      if (payload) {
+        const [user] = await db()
+          .select()
+          .from(schema.users)
+          .where(eq(schema.users.id, payload.userId))
+          .limit(1);
+        if (user?.isActive) return user;
+      }
+    }
     const email = jar.get(ROLE_COOKIE)?.value;
 
     if (email) {

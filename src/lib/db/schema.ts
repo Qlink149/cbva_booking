@@ -116,6 +116,8 @@ export const users = pgTable(
      * unaffected by the privacy choice.
      */
     shareAttendance: boolean("share_attendance").notNull().default(true),
+    /** scrypt password hash. Null means this account uses SSO/demo switching. */
+    passwordHash: text("password_hash"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

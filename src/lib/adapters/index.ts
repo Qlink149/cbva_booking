@@ -6,9 +6,9 @@ import {
   DemoCheckInSource,
   DemoMailProvider,
 } from "@/lib/adapters/demo";
+import { PasswordAuthProvider } from "@/lib/adapters/password";
 import {
   BadgeWebhookCheckInSource,
-  EntraAuthProvider,
   GraphCalendarSync,
   GraphMailProvider,
 } from "@/lib/adapters/production";
@@ -28,7 +28,7 @@ export function adapters(): Adapters {
   cached =
     serverEnv().appMode === "production"
       ? {
-          auth: new EntraAuthProvider(),
+          auth: new PasswordAuthProvider(),
           mail: new GraphMailProvider(),
           calendar: new GraphCalendarSync(),
           checkIn: new BadgeWebhookCheckInSource(),

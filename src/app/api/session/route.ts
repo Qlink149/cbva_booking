@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { auth } from "@/lib/adapters";
 import { ROLE_COOKIE } from "@/lib/adapters/demo";
+import { JWT_COOKIE_NAME } from "@/lib/auth/jwt";
 import { readDemoOffsetSeconds } from "@/lib/clock";
 import { serverEnv } from "@/lib/config";
 
@@ -11,11 +12,12 @@ export const dynamic = "force-dynamic";
 
 /** Who am I, plus the shared demo clock offset, plus who I can switch to. */
 export async function GET() {
+  const environment = serverEnv();
   const user = await auth().currentUser();
   const offsetSeconds = await readDemoOffsetSeconds();
 
   // One representative person per grade for the demo role switcher.
-  const candidates = await db()
+  const candidates = environment.appMode === "demo" ? await db()
     .select({
       email: schema.users.email,
       displayName: schema.users.displayName,
@@ -24,7 +26,7 @@ export async function GET() {
       isAdmin: schema.users.isAdmin,
     })
     .from(schema.users)
-    .orderBy(asc(schema.users.grade), asc(schema.users.displayName));
+    .orderBy(asc(schema.users.grade), asc(schema.users.displayName)) : [];
 
   const byGrade = new Map<string, (typeof candidates)[number]>();
   for (const c of candidates) {
@@ -40,7 +42,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    appMode: serverEnv().appMode,
+    appMode: environment.appMode,
     offsetSeconds,
     user: user
       ? {
@@ -95,5 +97,8 @@ export async function POST(request: Request) {
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
+  // Choosing a demo role intentionally ends any password-authenticated
+  // session, otherwise the JWT would continue to win in DemoAuthProvider.
+  res.cookies.delete({ name: JWT_COOKIE_NAME, path: "/" });
   return res;
 }

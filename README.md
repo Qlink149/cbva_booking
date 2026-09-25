@@ -27,6 +27,16 @@ npm run seed                      # 141 desks, 141 people, 8 weeks of history
 npm run dev                       # http://127.0.0.1:8081
 ```
 
+### Password sign-in
+
+The demo role switcher remains available in `APP_MODE=demo`. For password
+sign-in, set a random `JWT_SECRET` of at least 32 characters in the deployment
+environment, run the migrations, and provision each user deliberately with
+`npm run auth:set-password` using `AUTH_USER_EMAIL` and `AUTH_USER_PASSWORD`
+environment variables. Seed data never assigns a shared password. Self-service
+password reset is intentionally not enabled until a real email-delivery adapter
+is configured.
+
 You need a **Postgres 15+** database. We use Neon; anything with the `btree_gist`
 extension available will do — the meeting-room overlap rule needs it.
 

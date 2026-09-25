@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { useSession, useSwitchRole } from "@/components/app-shell/session";
 import { GRADE_LABEL } from "@/lib/seed-data/inventory";
 import type { Grade } from "@/lib/db/schema";
+import { AuthButton } from "@/components/app-shell/auth-button";
 
 /**
  * Demo affordance: switch which seeded person you are signed in as.
@@ -26,11 +27,7 @@ export function RoleSwitcher() {
   }
 
   if (data.appMode === "production") {
-    return (
-      <span className="text-sm text-ink-muted">
-        {data.user?.displayName ?? "Not signed in"}
-      </span>
-    );
+    return <AuthButton />;
   }
 
   return (
