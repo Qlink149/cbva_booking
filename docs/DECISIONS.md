@@ -1483,3 +1483,88 @@ is also visible-only: what it conveys is available to a screen reader through th
 seats themselves and the list view, which is the same position ADR-032 takes for
 the 3D view, but it does mean the density READING is a sighted convenience
 rather than a second accessible path.
+
+## ADR-049 — Room booking gets the desk-side date rules it never had, and attendees beyond the organiser
+
+**Decision.** Three changes to meeting-room booking, shipped together because
+testing one properly meant exercising the other.
+
+**A cancel cutoff, same rule and same setting as desks.** A room booking could
+be cancelled at any point, including one minute before it started — desks
+already close changes `settings.cutoffMinutes` before the slot starts
+(`assertBeforeCutoff`), and rooms had no equivalent. Reused directly rather
+than given a room-specific copy: the same organisational reason a late desk
+cancellation is refused (somebody else could have used it, and now nobody
+can) applies to a room. An admin still bypasses it, matching the desk side's
+own `force` override — an operational escape hatch, not a hole an organiser
+can use on themselves.
+
+**The date gap.** `createRoomBooking` checked office hours, a zero-length
+range, and an inverted range, and nothing else about the date. A room could be
+booked for a Saturday, a public holiday, or an hour that had already started —
+none of that was a race or an edge case, it was a rule the desk side already
+had (`assertDateBookable`, `bookableDates`) that nobody had ported over.
+`roomDateIssue()` in `src/lib/rooms/validation.ts` closes it: weekend, then
+holiday, then already-past, checked in that order so the message names the
+real reason rather than a generic refusal.
+
+**Deliberately NOT the desk's booking window.** Desks cap how far ahead you
+can book at five working days (`bookingWindowWorkingDays`). Nothing has asked
+for that limit on rooms, and adding it here would be a behaviour change dressed
+up as a bug fix. A room can still be booked for any date in the future; it just
+has to be a real, open, future one.
+
+**One holiday reader, not three.** `loadHolidays()` existed identically in
+`booking/service.ts` and `booking/seat-release.ts` — the same query, typed by
+hand twice. Extracted to `src/lib/holidays.ts` and both call sites updated, so
+adding the room booking's own copy would have made a fourth. Behaviour is
+unchanged; this is the DRY pass that was already overdue before this PR added
+a reason to need it a third time.
+
+**Attendees, beyond the organiser.** `room_booking_attendees` (0006) is new:
+`room_booking_id`, a nullable `user_id`, and a `name`/`email` that are always
+populated. Nullable is not an oversight — a client or a vendor invited to a
+meeting has no row in `users` to point at, and the room still has to show who
+is coming. Resolution is by email, case-insensitive, against active accounts
+only; a match copies the account's own display name across, a miss falls back
+to a name derived from the email's local part ("aparna.modi" becomes "Aparna
+Modi") so an external attendee never shows as a bare address on the grid.
+
+**Emails only, not a picker.** The invite field on the booking dialog is a
+single comma-separated input, matching Outlook's own "To:" field rather than
+introducing a searchable multi-select. It has to accept an address that is not
+a CBVA account at all — a picker built against `users` could not — and it is
+one field, not new UI chrome, which is the right size for a feature the brief
+never asked for by name.
+
+**Deduplicated and self-exclusive.** Emails are lower-cased and de-duplicated
+before anything is inserted, and the organiser's own address is dropped from
+the list rather than stored as a redundant attendee — they are already on the
+booking as its organiser. `room_booking_attendees_unique` on
+`(room_booking_id, email)` backs this at the database level too.
+
+**`bookedByCount` is not `bookingCount`.** The room header on `/rooms` now
+answers "how many people booked this room today" — computed as distinct
+organisers, not a count of bookings, from the same rows the grid already
+fetches for the day, no second query. One person holding three separate hours
+in the same room reads as 1 person, not 3, because that is the question that
+was asked. The raw booking count is kept alongside it for a screen that wants
+both.
+
+**A migration collision, caught by testing against a real database rather
+than trusting a clean `npm run db:migrate` exit.** The first draft of 0006
+reused an arbitrary journal timestamp that another in-flight branch had
+already used for its own, differently-named 0006 migration. Applied to the
+same shared development database, Drizzle silently treated this one as
+already-run and skipped it — no error, `migrations applied` printed, and the
+new table simply did not exist. Caught only by querying `to_regclass` after
+the fact, not by the migration command's own exit code. Fixed by picking a
+distinct timestamp; the lesson is general enough to be worth writing down —
+**a successful migration run has to be verified against the schema it claims
+to have produced, not trusted from its exit code.**
+
+**Cost.** A fourth table joined onto `room_bookings`, one extra query per grid
+load (batched across every booking in the day, not per-booking), and a new
+optional field on an input schema that used to have none. The date checks add
+one settings read (holidays) to a write path that was previously office-hours
+and nothing else.

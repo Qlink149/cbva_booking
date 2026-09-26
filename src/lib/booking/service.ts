@@ -36,6 +36,7 @@ import { hasReleasedOwnSeat, liveReleasesFor } from "@/lib/booking/seat-release"
 import type { Clock } from "@/lib/clock";
 import { schema, type Db, type DbLike } from "@/lib/db";
 import type { Booking, Seat, User } from "@/lib/db/schema";
+import { loadHolidays } from "@/lib/holidays";
 import { enqueueNotification } from "@/lib/notifications/outbox";
 import { renderSeatNotification } from "@/lib/notifications/render";
 import { getSettings, type AppSettings } from "@/lib/settings";
@@ -95,11 +96,6 @@ export interface ServiceContext {
 }
 
 /* ------------------------------------------------------------------ shared */
-
-async function loadHolidays(db: DbLike): Promise<Set<string>> {
-  const rows = await db.select({ d: schema.holidays.holidayDate }).from(schema.holidays);
-  return new Set(rows.map((r) => r.d));
-}
 
 async function seatByCode(db: DbLike, seatCode: string) {
   const [row] = await db

@@ -318,6 +318,32 @@ export const roomBookings = pgTable(
 );
 
 /**
+ * Who else is coming, beyond the organiser (0006). `userId` is null for
+ * somebody outside the firm — a client, a vendor — who has no row in `users`
+ * to link to; `name` and `email` are always stored regardless, so the room
+ * always shows who is coming even when the person is not one of ours.
+ */
+export const roomBookingAttendees = pgTable(
+  "room_booking_attendees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomBookingId: uuid("room_booking_id")
+      .notNull()
+      .references(() => roomBookings.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("room_booking_attendees_unique").on(t.roomBookingId, t.email),
+    index("room_booking_attendees_booking_idx").on(t.roomBookingId),
+  ],
+);
+
+/**
  * Stub table. No badge feed exists yet; CheckInSource writes here in demo mode
  * so a real reader webhook can land later with no schema change.
  */
@@ -540,6 +566,7 @@ export type NewBooking = typeof bookings.$inferInsert;
 export type MeetingRoom = typeof meetingRooms.$inferSelect;
 export type RoomBooking = typeof roomBookings.$inferSelect;
 export type NewRoomBooking = typeof roomBookings.$inferInsert;
+export type RoomBookingAttendee = typeof roomBookingAttendees.$inferSelect;
 export type BadgeEvent = typeof badgeEvents.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
 export type Zone = typeof zones.$inferSelect;

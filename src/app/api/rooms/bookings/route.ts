@@ -18,6 +18,7 @@ const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startHour: z.number().int().min(0).max(24),
   endHour: z.number().int().min(0).max(24),
+  attendeeEmails: z.array(z.string()).optional(),
 });
 
 export async function POST(request: Request) {
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
         // and the retry job will pick it up.
         calendarSynced: result.calendarSynced,
         syncStatus: result.calendarSynced ? "synced" : "failed",
+        attendees: result.attendees.map((a) => ({ name: a.name, email: a.email, isStaff: a.userId !== null })),
       },
       { status: 201 },
     );
