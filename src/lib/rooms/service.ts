@@ -20,6 +20,7 @@ import type { CalendarSync } from "@/lib/adapters/types";
 import { writeAudit } from "@/lib/audit";
 import { assertSignedIn } from "@/lib/booking/authorise";
 import { BookingError, rethrowMapped } from "@/lib/booking/errors";
+import { assertBeforeCutoff } from "@/lib/booking/rules";
 import type { Clock } from "@/lib/clock";
 import { schema, type Db, type DbLike } from "@/lib/db";
 import type { RoomBooking, RoomBookingAttendee, User } from "@/lib/db/schema";
@@ -398,6 +399,13 @@ export async function cancelRoomBooking(
   }
   if (existing.booking.status !== "confirmed") {
     throw new BookingError("BOOKING_NOT_ACTIVE", "That meeting has already been cancelled.");
+  }
+
+  // Same rule desks already have, same settings value: changes close
+  // `cutoffMinutes` before the meeting starts. Admins can still cancel late —
+  // an operational override, not a loophole for the organiser themselves.
+  if (!ctx.actor.isAdmin) {
+    assertBeforeCutoff(now, existing.booking.startsAt, settings.cutoffMinutes, settings.timezone);
   }
 
   const cancelled = await ctx.db.transaction(async (tx) => {

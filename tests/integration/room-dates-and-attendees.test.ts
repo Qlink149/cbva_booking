@@ -20,7 +20,7 @@ import { BookingError } from "@/lib/booking/errors";
 import type { Db } from "@/lib/db";
 import { schema } from "@/lib/db";
 import type { User } from "@/lib/db/schema";
-import { createRoomBooking, roomDay } from "@/lib/rooms/service";
+import { cancelRoomBooking, createRoomBooking, roomDay } from "@/lib/rooms/service";
 
 import {
   clearBookings,
@@ -220,5 +220,47 @@ describe("roomDay() reports how many distinct people booked each room", () => {
     const room = grid.rooms.find((r) => r.id === f.roomId);
     expect(room?.bookingCount).toBe(0);
     expect(room?.bookedByCount).toBe(0);
+  });
+});
+
+describe("cancelling a room booking respects the same cutoff desks already have", () => {
+  // The meeting starts 15:00 IST = 09:30Z. The seeded settings.cutoffMinutes is 60.
+  const withinCutoffNow = new Date("2099-01-05T09:00:00Z"); // 14:30 IST, 30 min before start
+  const beforeCutoffNow = new Date("2099-01-05T07:30:00Z"); // 13:00 IST, 2h before start
+
+  async function bookIt() {
+    const c = ctx(f.manager, new FixedClock(MONDAY_0700_IST));
+    return createRoomBooking(c, {
+      roomId: f.roomId,
+      title: "Cutoff check",
+      date: MONDAY,
+      startHour: 15,
+      endHour: 16,
+    });
+  }
+
+  it("refuses the organiser inside the cutoff window", async () => {
+    const created = await bookIt();
+    const c = ctx(f.manager, new FixedClock(withinCutoffNow));
+    const err = await expectBookingError(cancelRoomBooking(c, created.booking.id), "PAST_CUTOFF");
+    expect(err.message).toMatch(/closed/i);
+
+    // Refused, not merely reported as an error — the booking is still live.
+    const [row] = await db.select().from(schema.roomBookings).where(eq(schema.roomBookings.id, created.booking.id));
+    expect(row!.status).toBe("confirmed");
+  });
+
+  it("lets the organiser cancel well before the cutoff", async () => {
+    const created = await bookIt();
+    const c = ctx(f.manager, new FixedClock(beforeCutoffNow));
+    const cancelled = await cancelRoomBooking(c, created.booking.id);
+    expect(cancelled.status).toBe("cancelled");
+  });
+
+  it("an admin can still cancel inside the cutoff window — an operational override, not a loophole for the organiser", async () => {
+    const created = await bookIt();
+    const c = ctx(f.admin, new FixedClock(withinCutoffNow));
+    const cancelled = await cancelRoomBooking(c, created.booking.id);
+    expect(cancelled.status).toBe("cancelled");
   });
 });

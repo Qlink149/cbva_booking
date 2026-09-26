@@ -1486,8 +1486,18 @@ rather than a second accessible path.
 
 ## ADR-049 — Room booking gets the desk-side date rules it never had, and attendees beyond the organiser
 
-**Decision.** Two changes to meeting-room booking, shipped together because
+**Decision.** Three changes to meeting-room booking, shipped together because
 testing one properly meant exercising the other.
+
+**A cancel cutoff, same rule and same setting as desks.** A room booking could
+be cancelled at any point, including one minute before it started — desks
+already close changes `settings.cutoffMinutes` before the slot starts
+(`assertBeforeCutoff`), and rooms had no equivalent. Reused directly rather
+than given a room-specific copy: the same organisational reason a late desk
+cancellation is refused (somebody else could have used it, and now nobody
+can) applies to a room. An admin still bypasses it, matching the desk side's
+own `force` override — an operational escape hatch, not a hole an organiser
+can use on themselves.
 
 **The date gap.** `createRoomBooking` checked office hours, a zero-length
 range, and an inverted range, and nothing else about the date. A room could be
