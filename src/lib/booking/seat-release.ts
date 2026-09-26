@@ -24,6 +24,7 @@ import { BookingError } from "@/lib/booking/errors";
 import { cancelBooking, type ServiceContext } from "@/lib/booking/service";
 import { assertDateBookable } from "@/lib/booking/rules";
 import { schema, type Db, type DbLike } from "@/lib/db";
+import { loadHolidays } from "@/lib/holidays";
 import { getSettings } from "@/lib/settings";
 import { deriveSlotBounds, findSlot } from "@/lib/slots";
 
@@ -219,8 +220,7 @@ export async function releaseFixedSeat(
   }
   assertMayReleaseSeat(actor, seat);
 
-  const holidayRows = await db.select({ d: schema.holidays.holidayDate }).from(schema.holidays);
-  const holidays = new Set(holidayRows.map((h) => h.d));
+  const holidays = await loadHolidays(db);
 
   const slots = input.slots?.length
     ? input.slots

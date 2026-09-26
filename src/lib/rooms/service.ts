@@ -12,7 +12,7 @@
  * exists, `sync_status` records that it did not sync, and a retry job picks it
  * up. Nothing about a Microsoft outage is allowed to cost somebody their room.
  */
-import { and, asc, eq, gte, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
 import { fromZonedTime } from "date-fns-tz";
 
 import { calendar as defaultCalendar } from "@/lib/adapters";
@@ -21,12 +21,18 @@ import { writeAudit } from "@/lib/audit";
 import { assertSignedIn } from "@/lib/booking/authorise";
 import { BookingError, rethrowMapped } from "@/lib/booking/errors";
 import type { Clock } from "@/lib/clock";
-import { schema, type Db } from "@/lib/db";
-import type { RoomBooking, User } from "@/lib/db/schema";
+import { schema, type Db, type DbLike } from "@/lib/db";
+import type { RoomBooking, RoomBookingAttendee, User } from "@/lib/db/schema";
+import { loadHolidays } from "@/lib/holidays";
 import { enqueueNotification } from "@/lib/notifications/outbox";
 import { renderRoomNotification } from "@/lib/notifications/render";
 import { getSettings } from "@/lib/settings";
-import { officeHourColumns, roomBookingSchema, type RoomBookingRequest } from "@/lib/rooms/validation";
+import {
+  officeHourColumns,
+  roomBookingSchema,
+  roomDateIssue,
+  type RoomBookingRequest,
+} from "@/lib/rooms/validation";
 
 export interface RoomServiceContext {
   db: Db;
@@ -37,6 +43,13 @@ export interface RoomServiceContext {
 }
 
 /* --------------------------------------------------------------- the grid */
+
+export interface RoomGridAttendee {
+  name: string;
+  email: string;
+  /** True when the email matched an active CBVA account. */
+  isStaff: boolean;
+}
 
 export interface RoomGridBooking {
   id: string;
@@ -50,6 +63,8 @@ export interface RoomGridBooking {
   endHour: number;
   syncStatus: string;
   updatedAt: string;
+  /** Beyond the organiser. Empty for the ordinary "just me" meeting. */
+  attendees: RoomGridAttendee[];
 }
 
 export interface RoomGrid {
@@ -69,6 +84,14 @@ export interface RoomGrid {
     capacity: number;
     isBookable: boolean;
     amenities: unknown;
+    /**
+     * Distinct people with a confirmed booking in this room on this date —
+     * "how many people booked here today", not a count of bookings, so one
+     * person holding the room for three separate hours still reads as 1.
+     */
+    bookedByCount: number;
+    /** Total confirmed bookings, kept alongside the person count above. */
+    bookingCount: number;
   }>;
   bookings: RoomGridBooking[];
 }
@@ -108,6 +131,38 @@ export async function roomDay(db: Db, date: string): Promise<RoomGrid> {
       }).format(d),
     );
 
+  // Grouped from the same rows the grid itself is built from, not a second
+  // query — this date's bookings are already in memory.
+  const byRoom = new Map<string, { people: Set<string>; count: number }>();
+  for (const { booking } of rows) {
+    const entry = byRoom.get(booking.roomId) ?? { people: new Set<string>(), count: 0 };
+    entry.people.add(booking.organiserUserId);
+    entry.count += 1;
+    byRoom.set(booking.roomId, entry);
+  }
+
+  // One query for every attendee across every booking this day, then grouped
+  // in memory — an N+1 here would mean one query per meeting on a busy day.
+  const bookingIds = rows.map(({ booking }) => booking.id);
+  const attendeeRows =
+    bookingIds.length === 0
+      ? []
+      : await db
+          .select({
+            roomBookingId: schema.roomBookingAttendees.roomBookingId,
+            name: schema.roomBookingAttendees.name,
+            email: schema.roomBookingAttendees.email,
+            userId: schema.roomBookingAttendees.userId,
+          })
+          .from(schema.roomBookingAttendees)
+          .where(inArray(schema.roomBookingAttendees.roomBookingId, bookingIds));
+  const attendeesByBooking = new Map<string, RoomGridAttendee[]>();
+  for (const a of attendeeRows) {
+    const list = attendeesByBooking.get(a.roomBookingId) ?? [];
+    list.push({ name: a.name, email: a.email, isStaff: a.userId !== null });
+    attendeesByBooking.set(a.roomBookingId, list);
+  }
+
   return {
     date,
     timezone: settings.timezone,
@@ -119,6 +174,8 @@ export async function roomDay(db: Db, date: string): Promise<RoomGrid> {
       capacity: r.capacity,
       isBookable: r.isBookable,
       amenities: r.amenities,
+      bookedByCount: byRoom.get(r.id)?.people.size ?? 0,
+      bookingCount: byRoom.get(r.id)?.count ?? 0,
     })),
     bookings: rows.map(({ booking, organiserName }) => ({
       id: booking.id,
@@ -137,6 +194,7 @@ export async function roomDay(db: Db, date: string): Promise<RoomGrid> {
         Math.round((booking.endsAt.getTime() - booking.startsAt.getTime()) / 3600_000),
       syncStatus: booking.syncStatus,
       updatedAt: booking.updatedAt.toISOString(),
+      attendees: attendeesByBooking.get(booking.id) ?? [],
     })),
   };
 }
@@ -148,6 +206,57 @@ export interface CreateRoomBookingResult {
   roomName: string;
   /** False when the calendar call failed. The booking exists either way. */
   calendarSynced: boolean;
+  attendees: RoomBookingAttendee[];
+}
+
+/**
+ * "aparna.modi" becomes "Aparna Modi" — good enough to show on a grid for
+ * somebody outside the firm, who has no display name of their own to use.
+ * A CBVA employee never reaches this: they are matched by email first.
+ */
+function nameFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? email;
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+/**
+ * Resolves each email against `users` (active only) and inserts one row per
+ * attendee. Matched and unmatched attendees are inserted together so a
+ * partial failure cannot leave the list half right.
+ */
+async function insertAttendees(
+  tx: DbLike,
+  roomBookingId: string,
+  emails: string[],
+  now: Date,
+): Promise<RoomBookingAttendee[]> {
+  if (emails.length === 0) return [];
+
+  const matches = await tx
+    .select({ id: schema.users.id, email: schema.users.email, displayName: schema.users.displayName })
+    .from(schema.users)
+    .where(and(inArray(schema.users.email, emails), eq(schema.users.isActive, true)));
+  const byEmail = new Map(matches.map((u) => [u.email.toLowerCase(), u]));
+
+  return tx
+    .insert(schema.roomBookingAttendees)
+    .values(
+      emails.map((email) => {
+        const match = byEmail.get(email);
+        return {
+          roomBookingId,
+          userId: match?.id ?? null,
+          name: match?.displayName ?? nameFromEmail(email),
+          email,
+          createdAt: now,
+        };
+      }),
+    )
+    .returning();
 }
 
 export async function createRoomBooking(
@@ -188,9 +297,24 @@ export async function createRoomBooking(
     settings.timezone,
   );
 
+  // Weekend, holiday, or a start time already behind "now" — none of these
+  // are races, just a gap the desk side already closed and rooms had not.
+  const holidays = await loadHolidays(ctx.db);
+  const dateIssue = roomDateIssue(req.date, startsAt, now, holidays);
+  if (dateIssue) {
+    throw new BookingError("ROOM_DATE_NOT_BOOKABLE", dateIssue);
+  }
+
+  // Deduplicated, case-insensitive, and never the organiser inviting
+  // themselves — they are already on the booking as its organiser.
+  const attendeeEmails = [
+    ...new Set((req.attendeeEmails ?? []).map((e) => e.toLowerCase().trim())),
+  ].filter((e) => e !== ctx.actor.email.toLowerCase());
+
   let created: RoomBooking;
+  let attendees: RoomBookingAttendee[] = [];
   try {
-    created = await ctx.db.transaction(async (tx) => {
+    ({ booking: created, attendees } = await ctx.db.transaction(async (tx) => {
       const [booking] = await tx
         .insert(schema.roomBookings)
         .values({
@@ -205,6 +329,8 @@ export async function createRoomBooking(
           updatedAt: now,
         })
         .returning();
+
+      const insertedAttendees = await insertAttendees(tx, booking!.id, attendeeEmails, now);
 
       await enqueueNotification(tx, {
         kind: "room_confirmed",
@@ -233,11 +359,12 @@ export async function createRoomBooking(
           title: req.title,
           startsAt: startsAt.toISOString(),
           endsAt: endsAt.toISOString(),
+          attendeeCount: insertedAttendees.length,
         },
       });
 
-      return booking!;
-    });
+      return { booking: booking!, attendees: insertedAttendees };
+    }));
   } catch (err) {
     // 23P01 is not a bug, it is "somebody took part of that hour while you were
     // typing the meeting name". The caller refreshes the grid and says so.
@@ -245,7 +372,7 @@ export async function createRoomBooking(
   }
 
   const synced = await syncOne(ctx.db, ctx.clock, created, ctx.calendar ?? defaultCalendar(), ctx.actor.id);
-  return { booking: created, roomName: room.name, calendarSynced: synced };
+  return { booking: created, roomName: room.name, calendarSynced: synced, attendees };
 }
 
 /* ------------------------------------------------------------------ cancel */

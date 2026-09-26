@@ -35,6 +35,12 @@ import {
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
+interface RoomGridAttendee {
+  name: string;
+  email: string;
+  isStaff: boolean;
+}
+
 interface RoomGridBooking {
   id: string;
   roomId: string;
@@ -46,6 +52,7 @@ interface RoomGridBooking {
   startHour: number;
   endHour: number;
   syncStatus: string;
+  attendees: RoomGridAttendee[];
 }
 
 interface RoomGridPayload {
@@ -62,6 +69,9 @@ interface RoomGridPayload {
     bayCode: string | null;
     capacity: number;
     isBookable: boolean;
+    /** Distinct people with a confirmed booking here today, not a booking count. */
+    bookedByCount: number;
+    bookingCount: number;
   }>;
   bookings: RoomGridBooking[];
 }
@@ -88,6 +98,7 @@ export function RoomsClient() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [dragging, setDragging] = useState(false);
   const [title, setTitle] = useState("");
+  const [attendeeInput, setAttendeeInput] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [message, setMessage] = useState<{ tone: "positive" | "danger"; text: string } | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -110,7 +121,13 @@ export function RoomsClient() {
   });
 
   const book = useMutation({
-    mutationFn: async (vars: { roomId: string; startHour: number; endHour: number; title: string }) => {
+    mutationFn: async (vars: {
+      roomId: string;
+      startHour: number;
+      endHour: number;
+      title: string;
+      attendeeEmails: string[];
+    }) => {
       const res = await fetch("/api/rooms/bookings", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -118,7 +135,12 @@ export function RoomsClient() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw Object.assign(new Error(body.error ?? "Could not book the room."), body);
-      return body as { id: string; roomName: string; calendarSynced: boolean };
+      return body as {
+        id: string;
+        roomName: string;
+        calendarSynced: boolean;
+        attendees: RoomGridAttendee[];
+      };
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["rooms", date] }),
   });
@@ -182,9 +204,15 @@ export function RoomsClient() {
   function openDialog() {
     if (!selection || !selectionIsFree(selection)) return;
     setTitle("");
+    setAttendeeInput("");
     setDialogOpen(true);
     // The name is the only thing left to supply, so put the cursor in it.
     window.setTimeout(() => titleRef.current?.focus(), 0);
+  }
+
+  /** Comma or newline separated, like Outlook's own "To:" field. */
+  function parseAttendeeEmails(raw: string): string[] {
+    return [...new Set(raw.split(/[,\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean))];
   }
 
   async function confirm() {
@@ -198,14 +226,20 @@ export function RoomsClient() {
         startHour: from,
         endHour: to + 1,
         title: title.trim(),
+        attendeeEmails: parseAttendeeEmails(attendeeInput),
       });
       setDialogOpen(false);
       setSelection(null);
+      const calendarNote = result.calendarSynced
+        ? "the calendar invitation has gone out"
+        : "the calendar could not be updated just now — the booking stands and will sync automatically";
+      const attendeeNote =
+        result.attendees.length > 0
+          ? ` ${result.attendees.length} ${result.attendees.length === 1 ? "person is" : "people are"} invited.`
+          : "";
       setMessage({
         tone: "positive",
-        text: result.calendarSynced
-          ? `${result.roomName} is booked, and the calendar invitation has gone out.`
-          : `${result.roomName} is booked. The calendar could not be updated just now — the booking stands and will sync automatically.`,
+        text: `${result.roomName} is booked, and ${calendarNote}.${attendeeNote}`,
       });
     } catch (err) {
       const e = err as Error & { code?: string };
@@ -326,6 +360,18 @@ export function RoomsClient() {
                           {room.bayCode}
                         </span>
                       ) : null}
+                      {/*
+                        Distinct PEOPLE, not a booking count: one person holding
+                        the room for three hours reads as "1 person", which is
+                        the answer to "who has this room today" rather than a
+                        number that inflates with how many slots they took.
+                      */}
+                      {room.bookedByCount > 0 ? (
+                        <span className="ml-2 block text-[11px] text-ink-subtle">
+                          {room.bookedByCount} {room.bookedByCount === 1 ? "person" : "people"} booked today
+                          {room.bookingCount > room.bookedByCount ? ` (${room.bookingCount} meetings)` : ""}
+                        </span>
+                      ) : null}
                     </th>
                     {hours.map((hour) => {
                       const booking = isBooked(room.id, hour);
@@ -348,10 +394,22 @@ export function RoomsClient() {
                             aria-pressed={inSelection}
                             aria-label={
                               booking
-                                ? `${room.name} ${pad(hour)}:00, booked — ${booking.title}, ${mine ? "yours" : booking.organiserName}`
+                                ? `${room.name} ${pad(hour)}:00, booked — ${booking.title}, ${mine ? "yours" : booking.organiserName}${
+                                    booking.attendees.length > 0
+                                      ? `, plus ${booking.attendees.length} ${booking.attendees.length === 1 ? "attendee" : "attendees"}`
+                                      : ""
+                                  }`
                                 : `${room.name} ${pad(hour)}:00, free`
                             }
-                            title={booking ? `${booking.title} — ${booking.organiserName}` : undefined}
+                            title={
+                              booking
+                                ? `${booking.title} — ${booking.organiserName}${
+                                    booking.attendees.length > 0
+                                      ? ` + ${booking.attendees.map((a) => a.name).join(", ")}`
+                                      : ""
+                                  }`
+                                : undefined
+                            }
                             onPointerDown={() => {
                               if (booking) return;
                               beginSelection(room.id, hour);
@@ -449,6 +507,19 @@ export function RoomsClient() {
               }}
             />
           </Field>
+          <Field
+            label="Invite attendees (optional)"
+            htmlFor="meeting-attendees"
+            hint="Email addresses, separated by commas. A CBVA colleague's own account is matched automatically; anyone else is still shown by name."
+          >
+            <Input
+              id="meeting-attendees"
+              value={attendeeInput}
+              autoComplete="off"
+              placeholder="anjali.thakkar@cbva.in, client@example.com"
+              onChange={(e) => setAttendeeInput(e.target.value)}
+            />
+          </Field>
           <div className="mt-5 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>
               Close
@@ -504,6 +575,14 @@ function MeetingList({
                   </span>{" "}
                   · {nameOf(booking.roomId)} · {booking.title}
                   <span className="ml-2 text-xs text-ink-subtle">{booking.organiserName}</span>
+                  {booking.attendees.length > 0 ? (
+                    <span
+                      className="ml-2 text-xs text-ink-subtle"
+                      title={booking.attendees.map((a) => `${a.name} (${a.email})`).join(", ")}
+                    >
+                      + {booking.attendees.length} {booking.attendees.length === 1 ? "attendee" : "attendees"}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="flex items-center gap-2">
                   {booking.syncStatus !== "synced" ? (
