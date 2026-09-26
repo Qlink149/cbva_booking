@@ -6,8 +6,8 @@
  * A dialog rather than a one-tap action on the seat, because the seat, the date
  * and the slot somebody is about to commit to should be spelled out before they
  * commit to them — and because this is where the two things that make a booking
- * wrong live: booking for the wrong person, and booking something you can no
- * longer change.
+ * wrong live: booking the wrong desk or slot, and booking something you can no
+ * longer change. It always books for the person signed in.
  *
  * It handles three shapes of the same screen: a free desk (book it), your own
  * booking (check in, move it, drop it), and somebody else's (read only).
@@ -15,7 +15,6 @@
 import { useEffect, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 
-import { PersonPicker, type Person } from "@/components/booking/person-picker";
 import {
   useBookSeat,
   useCancelBooking,
@@ -66,8 +65,6 @@ export interface BookingDialogProps {
   date: string | null;
   slot: SlotKey;
   slotDefinition: SlotDefinition | null;
-  /** From /api/bookings — whether this person may book for a colleague. */
-  canBookOnBehalf: boolean;
   /** Shared clock, in ISO. Never the browser's own Date. */
   now: string | null;
   cutoffMinutes: number;
@@ -95,13 +92,10 @@ export function BookingDialog({
   date,
   slot,
   slotDefinition,
-  canBookOnBehalf,
   now,
   cutoffMinutes,
   onClose,
 }: BookingDialogProps) {
-  const [forSomeoneElse, setForSomeoneElse] = useState(false);
-  const [person, setPerson] = useState<Person | null>(null);
   const [error, setError] = useState<{ message: string; code?: string } | null>(null);
   /**
    * Declared here with the other state, NOT next to the button that uses it —
@@ -115,12 +109,8 @@ export function BookingDialog({
   const cancel = useCancelBooking();
   const checkIn = useCheckIn();
 
-  // A fresh dialog every time. Leaving the previous seat's error or the
-  // previous colleague selected is how somebody books a desk for the wrong
-  // person.
+  // A fresh dialog every time, so the previous seat's error never lingers.
   useEffect(() => {
-    setForSomeoneElse(false);
-    setPerson(null);
     setError(null);
     setDone(null);
   }, [seat?.seatCode, date, slot]);
@@ -143,16 +133,11 @@ export function BookingDialog({
 
   async function onBook() {
     setError(null);
-    if (forSomeoneElse && !person) {
-      setError({ message: "Choose the colleague this desk is for." });
-      return;
-    }
     try {
       await book.mutateAsync({
         seatCode: seat!.seatCode,
         bookingDate: date!,
         slot,
-        occupantUserId: forSomeoneElse ? person!.id : undefined,
       });
 
       /**
@@ -164,7 +149,7 @@ export function BookingDialog({
        * so the booking lands first and the repeat is a second, additive step.
        */
       let repeatNote = "";
-      if (repeatWeekly && !forSomeoneElse && date) {
+      if (repeatWeekly && date) {
         const weekday = isoWeekdayOf(date);
         try {
           const res = await createSeries({
@@ -183,9 +168,7 @@ export function BookingDialog({
       }
 
       setDone(
-        (forSomeoneElse
-          ? `${seat!.seatCode} is booked for ${person!.displayName}. They have been emailed.`
-          : `${seat!.seatCode} is yours for the ${slotDefinition?.label.toLowerCase() ?? slot}.`) +
+        `${seat!.seatCode} is yours for the ${slotDefinition?.label.toLowerCase() ?? slot}.` +
           repeatNote,
       );
     } catch (err) {
@@ -254,29 +237,6 @@ export function BookingDialog({
           {seat.occupantName && !yours ? <Row label="Occupant">{seat.occupantName}</Row> : null}
         </dl>
 
-        {bookable && canBookOnBehalf && !done ? (
-          <fieldset className="mt-4 space-y-3">
-            <legend className="sr-only">Who is this desk for?</legend>
-            <div role="radiogroup" aria-label="Who is this desk for?" className="flex gap-2">
-              <ChoiceButton
-                selected={!forSomeoneElse}
-                onSelect={() => {
-                  setForSomeoneElse(false);
-                  setPerson(null);
-                }}
-              >
-                For myself
-              </ChoiceButton>
-              <ChoiceButton selected={forSomeoneElse} onSelect={() => setForSomeoneElse(true)}>
-                For a colleague
-              </ChoiceButton>
-            </div>
-            {forSomeoneElse ? (
-              <PersonPicker value={person} onChange={setPerson} disabled={busy} />
-            ) : null}
-          </fieldset>
-        ) : null}
-
         {seat.status === "auto_released" && !done ? (
           <StatusMessage tone="caution" className="mt-4">
             This desk came free late — it was released because nobody checked in.
@@ -304,11 +264,7 @@ export function BookingDialog({
           </StatusMessage>
         ) : null}
 
-        {/* Offered only for your own booking: a repeat on somebody else's
-            behalf commits a colleague to a desk every week without asking
-            them, which is not a decision this dialog should let anybody make
-            in one click. */}
-        {!done && bookable && !forSomeoneElse && date ? (
+        {!done && bookable && date ? (
           <div className="mt-4 border-t border-hairline pt-4">
             <Switch
               label={`Book this desk every ${WEEKDAY_NAMES[isoWeekdayOf(date)]}`}
@@ -353,32 +309,5 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dt className="text-ink-muted">{label}</dt>
       <dd>{children}</dd>
     </div>
-  );
-}
-
-/** A radio, drawn as a segmented control. Real role, real keyboard semantics. */
-function ChoiceButton({
-  selected,
-  onSelect,
-  children,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={
-        selected
-          ? "rounded-sm border border-navy bg-navy-tint px-3 py-1.5 text-sm font-medium text-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
-          : "rounded-sm border border-hairline px-3 py-1.5 text-sm text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
-      }
-    >
-      {children}
-    </button>
   );
 }

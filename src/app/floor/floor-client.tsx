@@ -17,7 +17,6 @@ import {
   ZoneFilter,
 } from "@/components/floor-plan/controls";
 import { BookingDialog } from "@/components/floor-plan/booking-dialog";
-import { useMyBookings } from "@/components/booking/use-bookings";
 import { useClock } from "@/components/app-shell/session";
 import type { ZoneCode } from "@/lib/floorplan";
 import type {
@@ -255,13 +254,11 @@ export function FloorClient() {
   }, [setSelectedSeatCode]);
 
   /**
-   * The dialog needs three things the plan does not carry: whether this person
-   * may book for a colleague, the shared clock, and the cut-off. All three come
-   * from the server rather than being inferred — reading "now" from the
+   * The dialog needs two things the plan does not carry: the shared clock and
+   * the cut-off. Both come from the server rather than being inferred — reading "now" from the
    * browser's Date would let the client and the server disagree about whether a
    * slot has started.
    */
-  const mine = useMyBookings();
   const clock = useClock();
 
   /**
@@ -398,7 +395,6 @@ export function FloorClient() {
         date={activeDate}
         slot={activeSlot}
         slotDefinition={slots.find((s) => s.key === activeSlot) ?? null}
-        canBookOnBehalf={mine.data?.canBookOnBehalf ?? false}
         now={clock.data?.now ?? null}
         cutoffMinutes={dates.data?.cutoffMinutes ?? 60}
         onClose={onCloseDialog}
