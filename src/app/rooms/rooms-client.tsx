@@ -138,6 +138,19 @@ export function RoomsClient() {
   const hours = grid.data?.hours ?? [];
   const canBook = grid.data?.viewerCanBook === true;
 
+  /**
+   * Hours before this one are over and can't be booked — the same rule the
+   * server applies (roomDateIssue): the current hour stays open. Read from the
+   * shared clock (grid.data.now) in the firm's timezone, never the browser's.
+   */
+  const firstOpenHour = useMemo(() => {
+    if (!grid.data) return 0;
+    const today = formatInTimeZone(new Date(grid.data.now), grid.data.timezone, "yyyy-MM-dd");
+    if (grid.data.date > today) return 0;
+    if (grid.data.date < today) return 24;
+    return Number(formatInTimeZone(new Date(grid.data.now), grid.data.timezone, "H"));
+  }, [grid.data]);
+
   /** roomId -> hour -> the booking occupying it. */
   const occupancy = useMemo(() => {
     const map = new Map<string, Map<number, RoomGridBooking>>();
@@ -350,7 +363,8 @@ export function RoomsClient() {
                         booking !== null && booking.organiserUserId === grid.data?.viewerId;
                       // A booked hour, or a viewer below Manager grade: shown,
                       // never selectable.
-                      const locked = booking !== null || !canBook;
+                      const over = !booking && hour < firstOpenHour;
+                      const locked = booking !== null || !canBook || over;
 
                       return (
                         <td key={hour} className="border-b border-hairline p-0">
@@ -361,7 +375,9 @@ export function RoomsClient() {
                             aria-label={
                               booking
                                 ? `${room.name} ${pad(hour)}:00, booked — ${booking.title}, ${mine ? "yours" : booking.organiserName}`
-                                : `${room.name} ${pad(hour)}:00, free`
+                                : over
+                                  ? `${room.name} ${pad(hour)}:00, already over`
+                                  : `${room.name} ${pad(hour)}:00, free`
                             }
                             title={booking ? `${booking.title} — ${booking.organiserName}` : undefined}
                             onPointerDown={() => {
@@ -403,9 +419,11 @@ export function RoomsClient() {
                                   )
                                 : inSelection
                                   ? "bg-navy text-paper"
-                                  : canBook
-                                    ? "bg-surface text-ink-subtle hover:bg-surface-sunken"
-                                    : "cursor-default bg-surface text-ink-subtle",
+                                  : over
+                                    ? "cursor-not-allowed bg-surface-sunken text-ink-subtle"
+                                    : canBook
+                                      ? "bg-surface text-ink-subtle hover:bg-surface-sunken"
+                                      : "cursor-default bg-surface text-ink-subtle",
                             )}
                           >
                             {booking && isStart ? (

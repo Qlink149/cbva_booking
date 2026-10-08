@@ -23,10 +23,16 @@ import { BookingError, rethrowMapped } from "@/lib/booking/errors";
 import type { Clock } from "@/lib/clock";
 import { schema, type Db } from "@/lib/db";
 import type { RoomBooking, User } from "@/lib/db/schema";
+import { loadHolidays } from "@/lib/holidays";
 import { enqueueNotification } from "@/lib/notifications/outbox";
 import { renderRoomNotification } from "@/lib/notifications/render";
 import { getSettings } from "@/lib/settings";
-import { officeHourColumns, roomBookingSchema, type RoomBookingRequest } from "@/lib/rooms/validation";
+import {
+  officeHourColumns,
+  roomBookingSchema,
+  roomDateIssue,
+  type RoomBookingRequest,
+} from "@/lib/rooms/validation";
 
 export interface RoomServiceContext {
   db: Db;
@@ -188,6 +194,11 @@ export async function createRoomBooking(
     `${req.date}T${String(req.endHour).padStart(2, "0")}:00:00`,
     settings.timezone,
   );
+
+  // Weekends, public holidays, and hours already over (the current hour stays
+  // bookable). See roomDateIssue.
+  const dateIssue = roomDateIssue(req.date, startsAt, now, await loadHolidays(ctx.db));
+  if (dateIssue) throw new BookingError("ROOM_DATE_NOT_BOOKABLE", dateIssue);
 
   let created: RoomBooking;
   try {

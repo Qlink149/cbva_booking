@@ -14,6 +14,7 @@
  */
 import { z } from "zod";
 
+import { isWeekend } from "@/lib/booking-days";
 import { minutesOfDay } from "@/lib/slots";
 import type { OfficeHours } from "@/lib/settings";
 
@@ -73,6 +74,42 @@ export function roomBookingSchema(officeHours: OfficeHours) {
 }
 
 export type RoomBookingSchema = ReturnType<typeof roomBookingSchema>;
+
+/** The room grid is hourly, so an hour is the unit a booking starts on. */
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Whether a room booking's date and start are ones the product accepts.
+ *
+ * Rooms had none of the desk-side date rules: a room could be booked for a
+ * weekend, a public holiday, or a time already gone. (Adapted from PR #4.)
+ *
+ * The past rule mirrors desks, which refuse only a slot that has FINISHED and
+ * keep the current one open for somebody who walks in. Here the unit is an
+ * hour: at 10:05 the 10:00 hour is still bookable — the room is empty right
+ * now and a team wants it — but 09:00 is over and is refused. Booking an hour
+ * that is already gone is a data-entry error, and it would land in the room
+ * analytics as time the room was held.
+ *
+ * Deliberately NOT the desks' five-working-day window: nobody has asked for
+ * rooms to be capped, and adding one here would be a behaviour change dressed
+ * as a fix.
+ *
+ * Pure and clock-injected, so it's unit-testable without a database.
+ */
+export function roomDateIssue(
+  date: string,
+  startsAt: Date,
+  now: Date,
+  holidays: ReadonlySet<string>,
+): string | null {
+  if (isWeekend(date)) return "Rooms cannot be booked on a weekend.";
+  if (holidays.has(date)) return "Rooms cannot be booked on a public holiday.";
+  if (startsAt.getTime() + HOUR_MS <= now.getTime()) {
+    return "That hour is already over. Choose the current hour or a later one.";
+  }
+  return null;
+}
 
 /** The hour columns the grid draws, from the same settings value. */
 export function officeHourColumns(officeHours: OfficeHours): number[] {
