@@ -13,6 +13,7 @@ import {
   assertBookingForSelf,
   assertMayBookFor,
   assertSeatBookable,
+  canBookMeetingRooms,
 } from "@/lib/booking/authorise";
 import { BookingError, mapPgError } from "@/lib/booking/errors";
 import { assertBeforeCutoff, cutoffInstant, isPastCutoff, requireSlot } from "@/lib/booking/rules";
@@ -276,6 +277,15 @@ describe("who may book for whom — ASSUMPTIONS A7", () => {
         /only be booked for yourself/,
       );
     }
+  });
+
+  it("lets only Managers and above book meeting rooms — by grade, not the admin flag", () => {
+    expect(canBookMeetingRooms(person({ grade: "manager" }))).toBe(true);
+    expect(canBookMeetingRooms(person({ grade: "director" }))).toBe(true);
+    expect(canBookMeetingRooms(person({ grade: "partner" }))).toBe(true);
+    expect(canBookMeetingRooms(person({ grade: "article" }))).toBe(false);
+    expect(canBookMeetingRooms(person({ grade: "assistant_manager" }))).toBe(false);
+    expect(canBookMeetingRooms(person({ grade: "admin_staff", isAdmin: true }))).toBe(false);
   });
 
   it("refuses an occupant id that isn't the caller, before looking anybody up", () => {

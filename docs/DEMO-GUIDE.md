@@ -277,8 +277,9 @@ reports — that property is what makes the opt-out safe to offer at all.
 
 ## 8 · Meeting Rooms
 
-`/rooms`. Any signed-in staff member can book a room; **Aparna Modi
-(Manager)** is a good persona to show it from.
+`/rooms`. Meeting rooms are booked by **Managers and above** — sign in as
+**Aparna Modi (Manager)**. Articles and Assistant Managers see the same grid
+read-only, with a line saying who can book.
 
 ![The room-by-hour grid](images/demo/rooms-grid.png)
 

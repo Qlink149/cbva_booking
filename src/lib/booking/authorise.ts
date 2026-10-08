@@ -11,6 +11,26 @@ import type { Seat, User } from "@/lib/db/schema";
 /** Grades that hold an allocated desk and therefore must not consume a hot one. */
 const FIXED_GRADES = new Set(["partner", "director", "manager", "admin_staff"]);
 
+/**
+ * Grades that may book a meeting room: Managers and above (CBVA, Oct 2026).
+ * Grade, not the admin flag — an HR/IT admin who isn't Manager grade or above
+ * can't book rooms. Everyone can still SEE the room grid.
+ */
+const ROOM_BOOKING_GRADES = new Set(["manager", "director", "partner"]);
+
+export function canBookMeetingRooms(actor: User): boolean {
+  return ROOM_BOOKING_GRADES.has(actor.grade);
+}
+
+export function assertMayBookMeetingRooms(actor: User): void {
+  if (!canBookMeetingRooms(actor)) {
+    throw new BookingError(
+      "NOT_PERMITTED_ROOMS",
+      "Meeting rooms can be booked by Managers and above.",
+    );
+  }
+}
+
 export function assertSignedIn(actor: User | null): asserts actor is User {
   if (!actor) {
     throw new BookingError("NOT_SIGNED_IN", "You need to be signed in to do that.");

@@ -31,6 +31,8 @@ test.describe.configure({ mode: "serial" });
 
 let booker = "";
 let admin = "";
+/** Meeting rooms are Managers and above (CBVA, Oct 2026), so step 11 books as one. */
+let manager = "";
 let seatCode = "";
 /** ISO start of the booking made in step 1. Drives every clock move below. */
 let slotStartsAt = "";
@@ -40,7 +42,7 @@ test.beforeAll(async ({ request }) => {
   booker = am.email;
   const adminPersona = await personaOfGrade(request, "admin_staff");
   admin = adminPersona.email;
-  const manager = await personaOfGrade(request, "manager");
+  manager = (await personaOfGrade(request, "manager")).email;
 
   // A clean slate for the two people who book here. The engine refuses a second
   // desk in the same slot, so without this the walkthrough passes once and then
@@ -50,7 +52,7 @@ test.beforeAll(async ({ request }) => {
   // closed while a DELETE is still settling fails this hook, and a failed hook
   // in a serial spec skips all eleven steps.
   await clearUpcomingBookings(request, booker);
-  await clearUpcomingBookings(request, manager.email);
+  await clearUpcomingBookings(request, manager);
 });
 
 test.afterAll(async ({ request }) => {
@@ -313,7 +315,7 @@ test("10 — the release email is in the inbox", async ({ page }) => {
 });
 
 test("11 — a meeting room is booked from the grid", async ({ page }) => {
-  await signInAs(page, booker);
+  await signInAs(page, manager);
   await page.goto("/rooms");
   await settled(page);
   await shot(page, "p3-16-room-grid");
