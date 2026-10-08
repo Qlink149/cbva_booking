@@ -63,6 +63,7 @@ export interface OccupantContext {
   hasReleasedOwnSeat?: boolean;
 }
 
+/** May this person hold a hot desk for this slot? Always called with the actor. */
 export function assertOccupantMayBook(occupant: User, context: OccupantContext = {}): void {
   if (!occupant.isActive) {
     throw new BookingError(
@@ -84,6 +85,10 @@ export function assertOccupantMayBook(occupant: User, context: OccupantContext =
  * grade, admins included. CBVA asked for booking on somebody else's behalf to
  * be removed (Oct 2026; ASSUMPTIONS A7). Historical on-behalf rows are kept and
  * still count in the analytics; nothing can create a new one.
+ *
+ * Call it FIRST, before any lookup, so the refusal is the same 403 whatever
+ * the desk or date — and can't be used to test whether an id is a real person.
+ * Eligibility (grade, active, released seat) is assertOccupantMayBook, later.
  */
 export function assertBookingForSelf(actor: User, occupantUserId: string | undefined): void {
   if (occupantUserId !== undefined && occupantUserId !== actor.id) {
@@ -91,13 +96,26 @@ export function assertBookingForSelf(actor: User, occupantUserId: string | undef
   }
 }
 
-export function assertMayBookFor(
+/**
+ * Who may MOVE a booking (edit = cancel-and-rebook): only the person booked
+ * into it. Editing creates a new booking, so letting anyone else do it would
+ * be booking on their behalf by another route — an admin re-pointing somebody's
+ * Tuesday to a desk of the admin's choosing, or the booker of a historical
+ * on-behalf row minting a fresh one. Cancelling is a different rule
+ * (assertMayMutateBooking): the booker and admins may still cancel.
+ */
+export function assertMayEditBooking(
   actor: User,
-  occupant: User,
-  context: OccupantContext = {},
+  booking: { occupantUserId: string; bookedByUserId: string },
 ): void {
-  assertBookingForSelf(actor, occupant.id);
-  assertOccupantMayBook(occupant, context);
+  if (booking.occupantUserId === actor.id) return;
+  if (booking.bookedByUserId === actor.id || actor.isAdmin) {
+    throw new BookingError(
+      "NOT_PERMITTED_ON_BEHALF",
+      "Only the person booked into a desk can change it. You can cancel it instead.",
+    );
+  }
+  throw new BookingError("FORBIDDEN", "That is not your booking to change.");
 }
 
 /**

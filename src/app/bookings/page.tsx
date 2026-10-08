@@ -36,8 +36,8 @@ export default async function Page() {
       <header>
         <h1 className="text-2xl">My Bookings</h1>
         <p className="mt-1 max-w-2xl text-sm text-ink-muted">
-          Desks you have booked, and desks you have booked for colleagues. Check
-          in when you arrive — a desk nobody checks into within{" "}
+          The desks you have booked. Check in when you arrive — a desk nobody
+          checks into within{" "}
           {settings.autoReleaseMinutes} minutes is released back to the floor.
         </p>
       </header>

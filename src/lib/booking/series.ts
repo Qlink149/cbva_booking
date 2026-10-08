@@ -26,7 +26,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { writeAudit } from "@/lib/audit";
 import {
   assertBookingForSelf,
-  assertMayBookFor,
+  assertOccupantMayBook,
   assertSignedIn,
 } from "@/lib/booking/authorise";
 import { BookingError, isBookingError } from "@/lib/booking/errors";
@@ -57,11 +57,6 @@ const ABSORBED = new Set([
   "NOT_BOOKABLE_GRADE",
   "OCCUPANT_INACTIVE",
   "BOOKING_CONFLICT",
-  // A series set up on somebody's behalf before that was removed (Oct 2026).
-  // None existed when it was removed, but if one ever does it must fail its
-  // occurrences quietly — rethrowing would abort the whole job run, taking
-  // auto-release and email dispatch down with it every five minutes.
-  "NOT_PERMITTED_ON_BEHALF",
 ]);
 
 export interface SeriesFailure {
@@ -85,6 +80,8 @@ export interface MaterialiseResult {
   skippedExisting: number;
   failed: SeriesFailure[];
   notified: number;
+  /** Legacy series set up on somebody's behalf, ended this run (see below). */
+  legacyOnBehalfEnded: number;
   dryRun: boolean;
 }
 
@@ -138,6 +135,7 @@ export async function materialiseSeries(
     skippedExisting: 0,
     failed: [],
     notified: 0,
+    legacyOnBehalfEnded: 0,
     dryRun,
   };
   if (windowDates.length === 0) return result;
@@ -169,6 +167,32 @@ export async function materialiseSeries(
     // same book-for-yourself rule applies to every occurrence.
     const creator = await loadUser(db, series.createdByUserId);
     if (!creator) continue;
+
+    /**
+     * A series set up on somebody's behalf before that was removed (Oct 2026).
+     * None existed at removal. If one turns up, END it, once — never book
+     * from it, and never fail it per occurrence: that would rerun the whole
+     * booking path every tick, and email the occupant a false "the desk was
+     * taken" for every new date, forever.
+     */
+    if (series.createdByUserId !== series.occupantUserId) {
+      if (!dryRun) {
+        await db
+          .update(schema.bookingSeries)
+          .set({ status: "ended", updatedAt: clock.now() })
+          .where(eq(schema.bookingSeries.id, series.id));
+        await writeAudit(db, {
+          actorUserId: null,
+          entity: "booking_series",
+          entityId: series.id,
+          action: "cancel_series",
+          before: { status: series.status },
+          after: { status: "ended", reason: "booking on behalf was removed" },
+        });
+      }
+      result.legacyOnBehalfEnded += 1;
+      continue;
+    }
 
     for (const date of windowDates) {
       if (result.created >= maxPerRun) break;
@@ -340,6 +364,9 @@ export async function createSeries(
 ): Promise<{ series: BookingSeries; firstOccurrences: MaterialiseResult }> {
   const { db, clock, actor } = ctx;
   assertSignedIn(actor);
+  // Before any lookup — see assertBookingForSelf.
+  assertBookingForSelf(actor, input.occupantUserId);
+  const occupant = actor;
 
   const settings = await getSettings(db);
   if (!findSlot(settings.slotDefinitions, input.slot)) {
@@ -360,14 +387,10 @@ export async function createSeries(
     .limit(1);
   if (!seat) throw new BookingError("SEAT_NOT_FOUND", "That desk is not on the floor plan.");
 
-  // Refused before any lookup, as in createBooking.
-  assertBookingForSelf(actor, input.occupantUserId);
-  const occupant = actor;
-
   // Authorised once, here, on the same rules a single booking uses. The
   // materialiser re-checks per occurrence anyway because a grade or a seat
   // allocation can change between now and next Thursday.
-  assertMayBookFor(actor, occupant);
+  assertOccupantMayBook(occupant);
 
   const [series] = await db
     .insert(schema.bookingSeries)

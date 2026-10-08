@@ -11,7 +11,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertBookingForSelf,
-  assertMayBookFor,
+  assertMayEditBooking,
+  assertOccupantMayBook,
   assertSeatBookable,
   canBookMeetingRooms,
 } from "@/lib/booking/authorise";
@@ -273,10 +274,23 @@ describe("who may book for whom — ASSUMPTIONS A7", () => {
       person({ id: "p", grade: "partner", seatMode: "fixed" }),
       person({ id: "s", grade: "admin_staff", seatMode: "fixed", isAdmin: true }),
     ]) {
-      expect(() => assertMayBookFor(actor, occupant), actor.grade).toThrow(
+      expect(() => assertBookingForSelf(actor, occupant.id), actor.grade).toThrow(
         /only be booked for yourself/,
       );
     }
+  });
+
+  it("lets only the person booked into a desk move it — not the booker, not an admin", () => {
+    const occupant = person({ id: "o" });
+    const booker = person({ id: "b", grade: "manager", seatMode: "fixed" });
+    const admin = person({ id: "a", grade: "admin_staff", seatMode: "fixed", isAdmin: true });
+    const stranger = person({ id: "s" });
+    const legacyRow = { occupantUserId: "o", bookedByUserId: "b" };
+
+    expect(() => assertMayEditBooking(occupant, legacyRow)).not.toThrow();
+    expect(() => assertMayEditBooking(booker, legacyRow)).toThrow(/You can cancel it instead/);
+    expect(() => assertMayEditBooking(admin, legacyRow)).toThrow(/You can cancel it instead/);
+    expect(() => assertMayEditBooking(stranger, legacyRow)).toThrow(/not your booking/);
   });
 
   it("lets only Managers and above book meeting rooms — by grade, not the admin flag", () => {
@@ -299,12 +313,12 @@ describe("who may book for whom — ASSUMPTIONS A7", () => {
     // Not a permission slip-up but a capacity error: they already hold a desk,
     // so the floor is now short by one and every occupancy number is wrong.
     const partner = person({ id: "p", grade: "partner", seatMode: "fixed" });
-    expect(() => assertMayBookFor(partner, partner)).toThrow(/allocated desk/);
+    expect(() => assertOccupantMayBook(partner)).toThrow(/allocated desk/);
   });
 
   it("stops a deactivated account booking a desk", () => {
     const gone = person({ id: "g", isActive: false });
-    expect(() => assertMayBookFor(gone, gone)).toThrow(/no longer active/);
+    expect(() => assertOccupantMayBook(gone)).toThrow(/no longer active/);
   });
 
   it("refuses a desk that is not bookable, saying which kind of not", () => {

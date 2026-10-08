@@ -152,10 +152,11 @@ describe("recurring bookings", { timeout: 180_000 }, () => {
 
   /**
    * A series set up on somebody's behalf before the removal. None existed when
-   * it shipped, but if one ever turns up its occurrences must fail quietly: a
-   * rethrow here aborts the whole job run, auto-release and email included.
+   * it shipped, but if one ever turns up it must be ended once — not booked
+   * from, not failed per occurrence (that would email a false "desk taken"
+   * for every new date), and never allowed to throw and abort the job run.
    */
-  it("fails a leftover on-behalf series quietly instead of breaking the job run", async () => {
+  it("ends a leftover on-behalf series once: books nothing, emails nobody", async () => {
     const [legacy] = await db
       .insert(schema.bookingSeries)
       .values({
@@ -173,8 +174,19 @@ describe("recurring bookings", { timeout: 180_000 }, () => {
 
     const run = await materialiseSeries({ db, clock, onlySeriesIds: [legacy!.id] });
     expect(run.created).toBe(0);
-    expect(run.failed.length).toBe(datesUnderTest().length);
-    expect(run.failed.every((x) => x.code === "NOT_PERMITTED_ON_BEHALF")).toBe(true);
+    expect(run.failed).toHaveLength(0);
+    expect(run.notified).toBe(0);
+    expect(run.legacyOnBehalfEnded).toBe(1);
+
+    const [after] = await db
+      .select({ status: schema.bookingSeries.status })
+      .from(schema.bookingSeries)
+      .where(eq(schema.bookingSeries.id, legacy!.id));
+    expect(after!.status).toBe("ended");
+
+    // Ended means it's out of the job's way for good.
+    const again = await materialiseSeries({ db, clock, onlySeriesIds: [legacy!.id] });
+    expect(again.seriesConsidered).toBe(0);
   });
 
   /** THE TOMBSTONE. Cancel one day; the job must not put it back. */

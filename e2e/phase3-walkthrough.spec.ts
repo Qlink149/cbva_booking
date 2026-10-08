@@ -44,7 +44,7 @@ test.beforeAll(async ({ request }) => {
   admin = adminPersona.email;
   manager = (await personaOfGrade(request, "manager")).email;
 
-  // A clean slate for the two people who book here. The engine refuses a second
+  // A clean slate for the person who books desks here. The engine refuses a second
   // desk in the same slot, so without this the walkthrough passes once and then
   // fails on its own correct behaviour for the rest of the day.
   //
@@ -52,7 +52,6 @@ test.beforeAll(async ({ request }) => {
   // closed while a DELETE is still settling fails this hook, and a failed hook
   // in a serial spec skips all eleven steps.
   await clearUpcomingBookings(request, booker);
-  await clearUpcomingBookings(request, manager);
 });
 
 test.afterAll(async ({ request }) => {
@@ -332,4 +331,14 @@ test("11 — a meeting room is booked from the grid", async ({ page }) => {
   await expect(page.getByText(/is booked/i)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Phase 3 walkthrough").first()).toBeVisible();
   await shot(page, "p3-18-room-booked");
+
+  // Leave no trace: repeated runs would otherwise fill the earliest free hours.
+  await page
+    .locator("li", { hasText: "Phase 3 walkthrough" })
+    .first()
+    .getByRole("button", { name: "Cancel" })
+    .click();
+  await expect(page.locator("li", { hasText: "Phase 3 walkthrough" })).toHaveCount(0, {
+    timeout: 15_000,
+  });
 });

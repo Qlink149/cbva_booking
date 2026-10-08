@@ -317,15 +317,19 @@ function BookingRow({
                   Check in
                 </Button>
               ) : null}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onEdit}
-                disabled={busy || !canEdit}
-                title={canEdit ? undefined : cutoffExplanation(cutoffAt, cutoffMinutes)}
-              >
-                Edit
-              </Button>
+              {/* Only the person booked into a desk can move it; a historical
+                  booking made for somebody else can still be cancelled. */}
+              {row.bookedForSomeoneElse ? null : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onEdit}
+                  disabled={busy || !canEdit}
+                  title={canEdit ? undefined : cutoffExplanation(cutoffAt, cutoffMinutes)}
+                >
+                  Edit
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="ghost"
