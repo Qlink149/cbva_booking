@@ -176,6 +176,18 @@ export async function createRoomBooking(
   }
   const req = parsed.data;
 
+  // Impossible dates, weekends, holidays and hours already over (the current
+  // hour stays open) — before the room lookup, so an unbookable room can't mask
+  // the more basic refusal. See roomDateIssue / firstOpenHour.
+  const dateIssue = roomDateIssue(
+    req.date,
+    req.startHour,
+    now,
+    await loadHolidays(ctx.db),
+    settings.timezone,
+  );
+  if (dateIssue) throw new BookingError("ROOM_DATE_NOT_BOOKABLE", dateIssue);
+
   const [room] = await ctx.db
     .select()
     .from(schema.meetingRooms)
@@ -194,11 +206,6 @@ export async function createRoomBooking(
     `${req.date}T${String(req.endHour).padStart(2, "0")}:00:00`,
     settings.timezone,
   );
-
-  // Weekends, public holidays, and hours already over (the current hour stays
-  // bookable). See roomDateIssue.
-  const dateIssue = roomDateIssue(req.date, startsAt, now, await loadHolidays(ctx.db));
-  if (dateIssue) throw new BookingError("ROOM_DATE_NOT_BOOKABLE", dateIssue);
 
   let created: RoomBooking;
   try {

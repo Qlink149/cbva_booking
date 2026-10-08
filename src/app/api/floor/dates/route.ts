@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { bookableDays } from "@/lib/booking-days";
 import { getClock } from "@/lib/clock";
-import { db, schema } from "@/lib/db";
+import { db } from "@/lib/db";
+import { loadHolidays } from "@/lib/holidays";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +23,7 @@ export async function GET() {
   const database = db();
 
   const settings = await getSettings(database);
-  const holidayRows = await database
-    .select({ holidayDate: schema.holidays.holidayDate })
-    .from(schema.holidays);
+  const holidays = await loadHolidays(database);
 
   return NextResponse.json({
     timezone: settings.timezone,
@@ -38,7 +37,7 @@ export async function GET() {
       workingDays: settings.bookingWindowWorkingDays,
       calendarBound: settings.bookingWindowDays,
       // `date` columns come back from pg as strings, deliberately.
-      holidays: new Set(holidayRows.map((h) => h.holidayDate)),
+      holidays,
       timezone: settings.timezone,
     }),
     slots: settings.slotDefinitions,

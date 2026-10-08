@@ -57,6 +57,8 @@ interface RoomGridPayload {
   viewerIsAdmin: boolean;
   /** Managers and above. Everyone else gets a read-only grid. */
   viewerCanBook: boolean;
+  /** Hours before this are over (server-computed — see firstOpenHour). */
+  firstOpenHour: number;
   officeHours: { start: string; end: string };
   rooms: Array<{
     id: string;
@@ -138,18 +140,9 @@ export function RoomsClient() {
   const hours = grid.data?.hours ?? [];
   const canBook = grid.data?.viewerCanBook === true;
 
-  /**
-   * Hours before this one are over and can't be booked — the same rule the
-   * server applies (roomDateIssue): the current hour stays open. Read from the
-   * shared clock (grid.data.now) in the firm's timezone, never the browser's.
-   */
-  const firstOpenHour = useMemo(() => {
-    if (!grid.data) return 0;
-    const today = formatInTimeZone(new Date(grid.data.now), grid.data.timezone, "yyyy-MM-dd");
-    if (grid.data.date > today) return 0;
-    if (grid.data.date < today) return 24;
-    return Number(formatInTimeZone(new Date(grid.data.now), grid.data.timezone, "H"));
-  }, [grid.data]);
+  // Hours before this are over. Computed by the server with the same rule it
+  // enforces, so the grid can't offer an hour the server will refuse.
+  const firstOpenHour = grid.data?.firstOpenHour ?? 0;
 
   /** roomId -> hour -> the booking occupying it. */
   const occupancy = useMemo(() => {
@@ -167,14 +160,18 @@ export function RoomsClient() {
     [occupancy],
   );
 
-  /** A selection is only legal if every hour in it is free. */
+  /**
+   * A selection is only legal if every hour in it is free and none is over —
+   * including a selection made at 10:55 that the 11:00 refetch has overtaken.
+   */
   const selectionIsFree = useCallback(
     (sel: Selection) => {
       const [from, to] = sel.from <= sel.to ? [sel.from, sel.to] : [sel.to, sel.from];
+      if (from < firstOpenHour) return false;
       for (let h = from; h <= to; h += 1) if (isBooked(sel.roomId, h)) return false;
       return true;
     },
-    [isBooked],
+    [isBooked, firstOpenHour],
   );
 
   // A drag that ends anywhere — including off the grid — must stop dragging,
@@ -226,9 +223,11 @@ export function RoomsClient() {
     } catch (err) {
       const e = err as Error & { code?: string };
       setMessage({ tone: "danger", text: e.message });
-      if (e.code === "ROOM_OVERLAP") {
-        // The grid the user was looking at is out of date. Refetch under them
-        // and drop the selection so they cannot immediately retry the same hour.
+      if (e.code === "ROOM_OVERLAP" || e.code === "ROOM_DATE_NOT_BOOKABLE") {
+        // The grid the user was looking at is out of date — somebody took the
+        // hour, or it ended while they were naming the meeting. Close the
+        // dialog so the message isn't hidden behind it, refetch under them, and
+        // drop the selection so they can't immediately retry the same hour.
         setDialogOpen(false);
         setSelection(null);
         await qc.invalidateQueries({ queryKey: ["rooms", date] });

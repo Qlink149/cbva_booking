@@ -27,6 +27,11 @@ export function isWeekend(date: string): boolean {
   return day === 0 || day === 6;
 }
 
+/** A weekday that isn't a public holiday. One definition for desks and rooms. */
+export function isWorkingDay(date: string, holidays: ReadonlySet<string>): boolean {
+  return !isWeekend(date) && !holidays.has(date);
+}
+
 export interface BookingWindowOptions {
   /** "Now", from the Clock — never from the system. */
   now: Date;
@@ -59,7 +64,7 @@ export function bookableDates({
   const out: string[] = [];
   for (let offset = 0; offset <= calendarBound && out.length < workingDays; offset += 1) {
     const date = formatInTimeZone(addDays(now, offset), timezone, "yyyy-MM-dd");
-    if (isWeekend(date) || holidays.has(date)) continue;
+    if (!isWorkingDay(date, holidays)) continue;
     out.push(date);
   }
   return out;
