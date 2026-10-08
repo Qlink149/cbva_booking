@@ -73,7 +73,6 @@ export interface MyBookingRow {
 
 export interface MyBookingsPayload {
   now: string;
-  canBookOnBehalf: boolean;
   upcoming: MyBookingRow[];
   past: MyBookingRow[];
 }
@@ -105,7 +104,6 @@ export interface CreateBookingVars {
   seatCode: string;
   bookingDate: string;
   slot: SlotKey;
-  occupantUserId?: string;
 }
 
 /**
@@ -133,14 +131,11 @@ export function useBookSeat() {
       await qc.cancelQueries({ queryKey: key, exact: true });
       const previous = qc.getQueryData<FloorPlanPayload>(key);
       if (previous) {
-        // Booking for a colleague shows as "booked", not "yours": the desk is
-        // theirs, and the gold rule on the plan means "this one is mine".
-        const nextStatus = vars.occupantUserId ? "booked" : "your_booking";
         qc.setQueryData<FloorPlanPayload>(key, {
           ...previous,
           occupied: previous.occupied + 1,
           seats: previous.seats.map((s): FloorPlanSeat =>
-            s.seatCode === vars.seatCode ? { ...s, status: nextStatus } : s,
+            s.seatCode === vars.seatCode ? { ...s, status: "your_booking" } : s,
           ),
         });
       }

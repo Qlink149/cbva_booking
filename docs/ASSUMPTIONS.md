@@ -340,6 +340,17 @@ expected in**. Replace with CBVA's official holiday circular before go-live.
 
 ### A7 — Who may book on behalf of someone else
 
+**RESOLVED (Oct 2026): nobody.** CBVA asked for booking on somebody else's
+behalf to be removed, for every grade, admins included. A desk is only ever
+booked by the person who sits at it (`assertBookingForSelf()` in
+`src/lib/booking/authorise.ts`), and the same rule applies to recurring series.
+Historical on-behalf bookings are kept and still count in the analytics, under
+their occupant. Admins can still **cancel** somebody else's booking. Meeting
+rooms never had a book-for-someone-else path. The seed no longer generates
+on-behalf bookings. `GET /api/people` and the person picker are gone.
+
+The rest of this entry is the earlier assumption, kept for the record.
+
 **Assumed (revised in Phase 3):** `is_admin`, plus Manager, Director and
 Partner grades. The occupant must additionally be bookable-grade and active.
 
@@ -944,3 +955,20 @@ this is a one-line record, not an investigation, and it is deliberately not
 worth more than that until somebody at CBVA has a reason to care.
 
 **Where the answer goes:** one entry in `MUTED`. Nothing else reads it.
+
+### A30 — 🟡 "Managers and above" for meeting rooms is read as Manager, Director and Partner grades — not HR/IT admin staff
+
+**Decided by CBVA (Oct 2026):** meeting rooms are bookable by Managers and
+above. **Assumed by us:** that means the Manager, Director and Partner *grades*.
+HR/IT admin staff (`admin_staff` grade, even with `is_admin`) can **not** book
+rooms. They can still cancel somebody else's room booking, as before.
+
+**Affects:** `src/lib/booking/authorise.ts` → `ROOM_BOOKING_GRADES` /
+`canBookMeetingRooms()`; enforced in `src/lib/rooms/service.ts`, surfaced as a
+read-only grid in `src/app/rooms/rooms-client.tsx`.
+
+**Why it's worth confirming:** HR and admin teams often book the boardroom for
+interviews, inductions and client visits. If CBVA expects them to, add
+`admin_staff` to `ROOM_BOOKING_GRADES`. That is a one-line change, and the
+tests in `tests/unit/booking-rules.test.ts` and
+`tests/integration/room-rules.test.ts` say which way it is set.

@@ -18,7 +18,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { calendar as defaultCalendar } from "@/lib/adapters";
 import type { CalendarSync } from "@/lib/adapters/types";
 import { writeAudit } from "@/lib/audit";
-import { assertSignedIn } from "@/lib/booking/authorise";
+import { assertMayBookMeetingRooms, assertSignedIn } from "@/lib/booking/authorise";
 import { BookingError, rethrowMapped } from "@/lib/booking/errors";
 import type { Clock } from "@/lib/clock";
 import { schema, type Db } from "@/lib/db";
@@ -155,6 +155,7 @@ export async function createRoomBooking(
   input: RoomBookingRequest,
 ): Promise<CreateRoomBookingResult> {
   assertSignedIn(ctx.actor);
+  assertMayBookMeetingRooms(ctx.actor);
   const now = ctx.clock.now();
   const settings = await getSettings(ctx.db);
 

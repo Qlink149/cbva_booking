@@ -9,7 +9,13 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { canBookOnBehalf, assertMayBookFor, assertSeatBookable } from "@/lib/booking/authorise";
+import {
+  assertBookingForSelf,
+  assertMayEditBooking,
+  assertOccupantMayBook,
+  assertSeatBookable,
+  canBookMeetingRooms,
+} from "@/lib/booking/authorise";
 import { BookingError, mapPgError } from "@/lib/booking/errors";
 import { assertBeforeCutoff, cutoffInstant, isPastCutoff, requireSlot } from "@/lib/booking/rules";
 import { officeHourColumns, roomBookingSchema } from "@/lib/rooms/validation";
@@ -257,29 +263,62 @@ const person = (over: Partial<User>): User =>
   }) as User;
 
 describe("who may book for whom — ASSUMPTIONS A7", () => {
-  it("lets managers, directors, partners and admin staff book on behalf", () => {
-    expect(canBookOnBehalf(person({ grade: "manager" }))).toBe(true);
-    expect(canBookOnBehalf(person({ grade: "director" }))).toBe(true);
-    expect(canBookOnBehalf(person({ grade: "partner" }))).toBe(true);
-    expect(canBookOnBehalf(person({ grade: "admin_staff", isAdmin: true }))).toBe(true);
+  // CBVA asked for booking on somebody's behalf to be removed (Oct 2026).
+  it("refuses booking for somebody else, for every grade — admins included", () => {
+    const occupant = person({ id: "o", grade: "article" });
+    for (const actor of [
+      person({ id: "a", grade: "article" }),
+      person({ id: "am", grade: "assistant_manager" }),
+      person({ id: "m", grade: "manager", seatMode: "fixed" }),
+      person({ id: "d", grade: "director", seatMode: "fixed" }),
+      person({ id: "p", grade: "partner", seatMode: "fixed" }),
+      person({ id: "s", grade: "admin_staff", seatMode: "fixed", isAdmin: true }),
+    ]) {
+      expect(() => assertBookingForSelf(actor, occupant.id), actor.grade).toThrow(
+        /only be booked for yourself/,
+      );
+    }
   });
 
-  it("does not let an article or an assistant manager book for somebody else", () => {
-    expect(canBookOnBehalf(person({ grade: "article" }))).toBe(false);
-    expect(canBookOnBehalf(person({ grade: "assistant_manager" }))).toBe(false);
+  it("lets only the person booked into a desk move it — not the booker, not an admin", () => {
+    const occupant = person({ id: "o" });
+    const booker = person({ id: "b", grade: "manager", seatMode: "fixed" });
+    const admin = person({ id: "a", grade: "admin_staff", seatMode: "fixed", isAdmin: true });
+    const stranger = person({ id: "s" });
+    const legacyRow = { occupantUserId: "o", bookedByUserId: "b" };
+
+    expect(() => assertMayEditBooking(occupant, legacyRow)).not.toThrow();
+    expect(() => assertMayEditBooking(booker, legacyRow)).toThrow(/You can cancel it instead/);
+    expect(() => assertMayEditBooking(admin, legacyRow)).toThrow(/You can cancel it instead/);
+    expect(() => assertMayEditBooking(stranger, legacyRow)).toThrow(/not your booking/);
+  });
+
+  it("lets only Managers and above book meeting rooms — by grade, not the admin flag", () => {
+    expect(canBookMeetingRooms(person({ grade: "manager" }))).toBe(true);
+    expect(canBookMeetingRooms(person({ grade: "director" }))).toBe(true);
+    expect(canBookMeetingRooms(person({ grade: "partner" }))).toBe(true);
+    expect(canBookMeetingRooms(person({ grade: "article" }))).toBe(false);
+    expect(canBookMeetingRooms(person({ grade: "assistant_manager" }))).toBe(false);
+    expect(canBookMeetingRooms(person({ grade: "admin_staff", isAdmin: true }))).toBe(false);
+  });
+
+  it("refuses an occupant id that isn't the caller, before looking anybody up", () => {
+    const me = person({ id: "me" });
+    expect(() => assertBookingForSelf(me, "someone-else")).toThrow(/only be booked for yourself/);
+    expect(() => assertBookingForSelf(me, "me")).not.toThrow();
+    expect(() => assertBookingForSelf(me, undefined)).not.toThrow();
   });
 
   it("stops a partner consuming a hot desk", () => {
     // Not a permission slip-up but a capacity error: they already hold a desk,
     // so the floor is now short by one and every occupancy number is wrong.
     const partner = person({ id: "p", grade: "partner", seatMode: "fixed" });
-    expect(() => assertMayBookFor(partner, partner)).toThrow(/allocated desk/);
+    expect(() => assertOccupantMayBook(partner)).toThrow(/allocated desk/);
   });
 
-  it("stops a desk being booked for a deactivated colleague", () => {
-    const manager = person({ id: "m", grade: "manager", seatMode: "fixed" });
+  it("stops a deactivated account booking a desk", () => {
     const gone = person({ id: "g", isActive: false });
-    expect(() => assertMayBookFor(manager, gone)).toThrow(/no longer active/);
+    expect(() => assertOccupantMayBook(gone)).toThrow(/no longer active/);
   });
 
   it("refuses a desk that is not bookable, saying which kind of not", () => {

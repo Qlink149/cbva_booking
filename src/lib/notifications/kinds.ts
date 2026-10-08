@@ -8,6 +8,9 @@
  */
 export const NOTIFICATION_KINDS = [
   "booking_confirmed",
+  // History only. Booking on somebody's behalf was removed (Oct 2026), so this
+  // is never sent again; it stays so the admin outbox can label and filter the
+  // rows that were sent before. render.ts excludes it from what can be sent.
   "booked_on_your_behalf",
   "booking_edited",
   "booking_cancelled",

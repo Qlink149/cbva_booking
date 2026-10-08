@@ -469,7 +469,7 @@ describe("8 — a desk is decommissioned while future bookings exist", () => {
 });
 
 describe("9 — one person books two different desks in the same slot", () => {
-  it("refuses the second, but allows an on-behalf booking for somebody else", async () => {
+  it("refuses the second and hands back the booking in the way; somebody else can still take the desk", async () => {
     const clock = freshClock();
     await createBooking(ctx(f.article, clock), {
       seatCode: f.seatA.code,
@@ -477,7 +477,7 @@ describe("9 — one person books two different desks in the same slot", () => {
       slot: "AM",
     });
 
-    await expectBookingError(
+    const err = await expectBookingError(
       createBooking(ctx(f.article, clock), {
         seatCode: f.seatB.code,
         bookingDate: MONDAY,
@@ -485,44 +485,51 @@ describe("9 — one person books two different desks in the same slot", () => {
       }),
       "OCCUPANT_ALREADY_BOOKED",
     );
-
-    // The carve-out the brief asks for: the same booker, a different occupant.
-    // occupant_slot_unique is keyed on the occupant, so this is simply a
-    // different key rather than a special case in the code.
-    const forColleague = await createBooking(ctx(f.manager, clock), {
-      seatCode: f.seatB.code,
-      bookingDate: MONDAY,
-      slot: "AM",
-      occupantUserId: f.colleague.id,
-    });
-    expect(forColleague.booking.status).toBe("confirmed");
-    expect(forColleague.booking.source).toBe("on_behalf");
-  });
-});
-
-describe("10 — booking on behalf of somebody who already has a desk", () => {
-  it("refuses, and hands back the booking that is in the way", async () => {
-    const clock = freshClock();
-    await createBooking(ctx(f.colleague, clock), {
-      seatCode: f.seatA.code,
-      bookingDate: MONDAY,
-      slot: "PM",
-    });
-
-    const err = await expectBookingError(
-      createBooking(ctx(f.manager, clock), {
-        seatCode: f.seatB.code,
-        bookingDate: MONDAY,
-        slot: "PM",
-        occupantUserId: f.colleague.id,
-      }),
-      "OCCUPANT_ALREADY_BOOKED",
-    );
-
     // "Conflict" is not actionable; the desk they already have is.
     const existing = (err.details as { existing: { seatCode: string } | null }).existing;
     expect(existing?.seatCode).toBe(f.seatA.code);
     expect(err.message).toContain(f.seatA.code);
+
+    // occupant_slot_unique is keyed on the occupant, so a different person
+    // booking the other desk is simply a different key.
+    const colleague = await createBooking(ctx(f.colleague, clock), {
+      seatCode: f.seatB.code,
+      bookingDate: MONDAY,
+      slot: "AM",
+    });
+    expect(colleague.booking.status).toBe("confirmed");
+    expect(colleague.booking.source).toBe("self");
+  });
+});
+
+/**
+ * The brief's case 10 was "booking on behalf of somebody who already has a
+ * desk". CBVA asked for booking on behalf to be removed altogether (Oct 2026),
+ * so the case is now: it is refused for everybody, before anyone is looked up.
+ */
+describe("10 — booking on behalf of somebody else", () => {
+  it("is refused for every grade, admins included, and books nothing", async () => {
+    const clock = freshClock();
+    for (const actor of [f.manager, f.admin]) {
+      await expectBookingError(
+        createBooking(ctx(actor, clock), {
+          seatCode: f.seatB.code,
+          bookingDate: MONDAY,
+          slot: "PM",
+          occupantUserId: f.colleague.id,
+        }),
+        "NOT_PERMITTED_ON_BEHALF",
+      );
+    }
+
+    const live = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.bookings)
+      .where(
+        sql`${schema.bookings.occupantUserId} = ${f.colleague.id}
+            and ${schema.bookings.bookingDate} = ${MONDAY}`,
+      );
+    expect(live[0]!.n).toBe(0);
   });
 });
 
@@ -569,18 +576,33 @@ describe("11 — the booking window", () => {
 describe("12 — a user is deactivated with future bookings", () => {
   it("cancels them and tells both the occupant and whoever booked it", async () => {
     const clock = freshClock();
-    const booked = await createBooking(ctx(f.manager, clock), {
+    const own = await createBooking(ctx(f.colleague, clock), {
       seatCode: f.seatA.code,
       bookingDate: TUESDAY,
       slot: "AM",
-      occupantUserId: f.colleague.id,
     });
+    // A historical on-behalf booking — none can be created any more, but the
+    // ones made before the removal are kept, and their booker still has to be
+    // told when they're cancelled.
+    const legacy = await createBooking(ctx(f.colleague, clock), {
+      seatCode: f.seatB.code,
+      bookingDate: TUESDAY,
+      slot: "PM",
+    });
+    await db
+      .update(schema.bookings)
+      .set({ bookedByUserId: f.manager.id, source: "on_behalf" })
+      .where(eq(schema.bookings.id, legacy.booking.id));
 
     const result = await setUserActive(ctx(f.admin, clock), f.colleague.id, false);
-    expect(result.cancelledBookingIds).toEqual([booked.booking.id]);
+    expect([...result.cancelledBookingIds].sort()).toEqual(
+      [own.booking.id, legacy.booking.id].sort(),
+    );
 
-    const row = await bookingById(db, booked.booking.id);
-    expect(row!.status).toBe("cancelled_by_admin");
+    for (const id of [own.booking.id, legacy.booking.id]) {
+      const row = await bookingById(db, id);
+      expect(row!.status).toBe("cancelled_by_admin");
+    }
 
     const told = await messagesFor(db, f, "booking_cancelled");
     const recipients = told.map((m) => m.recipientEmail);

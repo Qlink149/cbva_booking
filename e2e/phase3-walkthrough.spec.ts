@@ -2,7 +2,7 @@
  * The Phase 3 walkthrough, as one spec.
  *
  * Sign in as an assistant manager, book a desk, see the confirmation in the
- * demo inbox, check in by QR, book on behalf of a colleague, cancel, then
+ * demo inbox, check in by QR, cancel, then
  * advance the clock and watch a different booking auto-release.
  *
  * It runs in order and shares state between tests deliberately — it is a
@@ -31,6 +31,8 @@ test.describe.configure({ mode: "serial" });
 
 let booker = "";
 let admin = "";
+/** Meeting rooms are Managers and above (CBVA, Oct 2026), so step 11 books as one. */
+let manager = "";
 let seatCode = "";
 /** ISO start of the booking made in step 1. Drives every clock move below. */
 let slotStartsAt = "";
@@ -40,9 +42,9 @@ test.beforeAll(async ({ request }) => {
   booker = am.email;
   const adminPersona = await personaOfGrade(request, "admin_staff");
   admin = adminPersona.email;
-  const manager = await personaOfGrade(request, "manager");
+  manager = (await personaOfGrade(request, "manager")).email;
 
-  // A clean slate for the two people who book here. The engine refuses a second
+  // A clean slate for the person who books desks here. The engine refuses a second
   // desk in the same slot, so without this the walkthrough passes once and then
   // fails on its own correct behaviour for the rest of the day.
   //
@@ -50,7 +52,6 @@ test.beforeAll(async ({ request }) => {
   // closed while a DELETE is still settling fails this hook, and a failed hook
   // in a serial spec skips all eleven steps.
   await clearUpcomingBookings(request, booker);
-  await clearUpcomingBookings(request, manager.email);
 });
 
 test.afterAll(async ({ request }) => {
@@ -313,7 +314,7 @@ test("10 — the release email is in the inbox", async ({ page }) => {
 });
 
 test("11 — a meeting room is booked from the grid", async ({ page }) => {
-  await signInAs(page, booker);
+  await signInAs(page, manager);
   await page.goto("/rooms");
   await settled(page);
   await shot(page, "p3-16-room-grid");
@@ -330,4 +331,14 @@ test("11 — a meeting room is booked from the grid", async ({ page }) => {
   await expect(page.getByText(/is booked/i)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Phase 3 walkthrough").first()).toBeVisible();
   await shot(page, "p3-18-room-booked");
+
+  // Leave no trace: repeated runs would otherwise fill the earliest free hours.
+  await page
+    .locator("li", { hasText: "Phase 3 walkthrough" })
+    .first()
+    .getByRole("button", { name: "Cancel" })
+    .click();
+  await expect(page.locator("li", { hasText: "Phase 3 walkthrough" })).toHaveCount(0, {
+    timeout: 15_000,
+  });
 });

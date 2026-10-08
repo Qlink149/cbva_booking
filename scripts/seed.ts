@@ -88,7 +88,6 @@ const CANCEL_RATE = 0.08;
  */
 const LEFT_EARLY_RATE = 0.03;
 const ADMIN_CANCEL_RATE = 0.015;
-const ON_BEHALF_RATE = 0.04;
 const BAY_AFFINITY = 0.65;
 const FULL_DAY_RATE = 0.7;
 const AM_ONLY_SPLIT = 0.55;
@@ -611,8 +610,9 @@ async function main() {
         !noShow &&
         !leftEarly &&
         roll < CANCEL_RATE + NO_SHOW_RATE + LEFT_EARLY_RATE + ADMIN_CANCEL_RATE;
-      const onBehalf = rng.chance(ON_BEHALF_RATE);
-      const bookedBy = onBehalf ? rng.pick(bookableUsers) : user;
+      // Every seeded booking is made by the person who sits at the desk:
+      // booking on somebody's behalf was removed (Oct 2026).
+      const bookedBy = user;
 
       for (const slot of slots) {
         taken.add(`${seat.seatCode}|${slot}`);
@@ -692,7 +692,7 @@ async function main() {
           bookedByUserId: bookedBy.id,
           occupantUserId: user.id,
           status,
-          source: onBehalf ? "on_behalf" : "self",
+          source: "self",
           checkedInAt,
           checkInMethod,
           releasedAt,
@@ -891,7 +891,6 @@ async function main() {
       (select count(*) from bookings where status = 'auto_released'
                                          or status = 'completed_no_show') as no_shows,
       (select count(*) from bookings where status = 'cancelled_by_user')  as cancelled,
-      (select count(*) from bookings where source = 'on_behalf')          as on_behalf,
       (select count(*) from meeting_rooms)  as meeting_rooms,
       (select count(*) from room_bookings)  as room_bookings,
       (select count(*) from holidays)       as holidays

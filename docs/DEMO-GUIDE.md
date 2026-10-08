@@ -27,7 +27,7 @@ page) is the demo's stand-in for signing in — see §1. A quick reference:
 |---|---|---|
 | Aarav Agarwal | Partner, Admin | Everything under Admin; releasing an allocated desk |
 | Ananya Gokhale | Article | The booking flow — she is the group the policy actually targets |
-| Aparna Modi | Manager | Booking on behalf of a colleague; booking a meeting room |
+| Aparna Modi | Manager | Booking a meeting room |
 | Anjali Thakkar | Assistant Manager | A second bookable-grade view, if Ananya's desk is already taken in the demo data |
 | Vinay Karnik | Director | A fixed-seat holder who is not an admin |
 | Amit Deshpande | Admin / HR / IT | Admin access without being a partner |
@@ -147,11 +147,10 @@ day books itself as it enters the five-day window, and if somebody else
 takes the desk first on one occurrence, only that day is affected; the
 series continues.
 
-**Booking on behalf of someone else.** Sign in as **Aparna Modi (Manager)**
-or **Aarav Agarwal**. The booking dialog gains a person picker restricted to
-staff who are themselves eligible to book — only Managers, Directors,
-Partners and Admin/HR/IT staff may book for a colleague, and only for a
-bookable-grade colleague, never for another fixed-seat holder.
+**Nobody books on somebody else's behalf.** CBVA asked for this to be
+removed (Oct 2026), for every grade including admins: a desk is only ever booked
+by the person who will sit at it. If asked, say so plainly — it's a deliberate
+rule, not a missing feature.
 
 **What NOT to click:** avoid repeatedly booking and cancelling the same desk
 across many rehearsals — it is real data, and `npm run seed` is the reset if
@@ -278,8 +277,9 @@ reports — that property is what makes the opt-out safe to offer at all.
 
 ## 8 · Meeting Rooms
 
-`/rooms`. Sign in as **Aparna Modi (Manager)** or above — booking a room
-follows the same eligibility as booking a desk on behalf of someone.
+`/rooms`. Meeting rooms are booked by **Managers and above** — sign in as
+**Aparna Modi (Manager)**. Articles and Assistant Managers see the same grid
+read-only, with a line saying who can book.
 
 ![The room-by-hour grid](images/demo/rooms-grid.png)
 

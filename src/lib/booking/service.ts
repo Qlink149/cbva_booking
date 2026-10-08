@@ -21,8 +21,10 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { writeAudit } from "@/lib/audit";
 import {
-  assertMayBookFor,
+  assertBookingForSelf,
+  assertMayEditBooking,
   assertMayMutateBooking,
+  assertOccupantMayBook,
   assertSeatBookable,
 } from "@/lib/booking/authorise";
 import { BookingError, pgErrorInfo, rethrowMapped } from "@/lib/booking/errors";
@@ -271,7 +273,12 @@ export interface CreateBookingInput {
   seatCode: string;
   bookingDate: string;
   slot: string;
-  /** Omit to book for yourself. */
+  /**
+   * Only ever the actor's own id, or omitted. Anything else is refused: desks
+   * are booked by the person who sits at them (assertBookingForSelf). Kept as
+   * an input so a stale client asking to book for somebody else gets a clear
+   * refusal rather than silently booking the desk for itself.
+   */
   occupantUserId?: string;
   /**
    * Set by the recurring-booking materialiser, which reuses this function
@@ -300,6 +307,10 @@ export async function createBooking(
   ctx: ServiceContext,
   input: CreateBookingInput,
 ): Promise<BookingResult> {
+  // Before any lookup — see assertBookingForSelf.
+  assertBookingForSelf(ctx.actor, input.occupantUserId);
+  const occupant = ctx.actor;
+
   const now = ctx.clock.now();
   const settings = await getSettings(ctx.db);
   const slot = requireSlot(settings, input.slot);
@@ -323,13 +334,6 @@ export async function createBooking(
   const seat: Seat = seatRow!.seat;
   const zone = seatRow!.zoneCode;
 
-  const occupant =
-    input.occupantUserId && input.occupantUserId !== ctx.actor.id
-      ? await userById(ctx.db, input.occupantUserId)
-      : ctx.actor;
-  if (!occupant) {
-    throw new BookingError("USER_NOT_FOUND", "That colleague is not on the staff list.");
-  }
   // Somebody who gave up their own allocated desk for this slot may take a hot
   // one. Without it, releasing your desk in the morning and then changing your
   // mind leaves you with nowhere to sit and no way to book.
@@ -339,7 +343,7 @@ export async function createBooking(
     input.bookingDate,
     slot.key,
   );
-  assertMayBookFor(ctx.actor, occupant, { hasReleasedOwnSeat: releasedOwnSeat });
+  assertOccupantMayBook(occupant, { hasReleasedOwnSeat: releasedOwnSeat });
 
   const { startsAt, endsAt } = deriveSlotBounds(
     input.bookingDate,
@@ -368,8 +372,8 @@ export async function createBooking(
     );
   }
 
-  const source: "self" | "admin" | "on_behalf" =
-    occupant.id === ctx.actor.id ? "self" : ctx.actor.isAdmin ? "admin" : "on_behalf";
+  // `admin` and `on_behalf` survive in the enum for historical rows only.
+  const source = "self" as const;
 
   try {
     return await ctx.db.transaction(async (tx) => {
@@ -434,17 +438,6 @@ export async function createBooking(
           to: ctx.actor.email,
           bookingId: booking!.id,
           rendered: renderSeatNotification("booking_confirmed", notifyContext(args)),
-        });
-      }
-
-      // The colleague gets their own message. Being given a desk without being
-      // told is how a booking becomes a no-show.
-      if (occupant.id !== ctx.actor.id && !input.suppressNotifications) {
-        await enqueueNotification(tx, {
-          kind: "booked_on_your_behalf",
-          to: occupant.email,
-          bookingId: booking!.id,
-          rendered: renderSeatNotification("booked_on_your_behalf", notifyContext(args)),
         });
       }
 
@@ -533,7 +526,8 @@ export async function editBooking(
   const holidays = await loadHolidays(ctx.db);
 
   const existing = await loadBookingRow(ctx.db, input.bookingId);
-  assertMayMutateBooking(ctx.actor, existing.booking);
+  // Editing creates a new booking, so only the person booked into it may do it.
+  assertMayEditBooking(ctx.actor, existing.booking);
 
   /**
    * The optimistic lock, checked here as well as inside the transaction.
@@ -575,8 +569,17 @@ export async function editBooking(
   const seat = seatRow!.seat;
   const zone = seatRow!.zoneCode;
 
-  const occupant = await userById(ctx.db, existing.booking.occupantUserId);
-  if (!occupant) throw new BookingError("USER_NOT_FOUND", "That colleague is no longer on the list.");
+  // assertMayEditBooking guarantees the actor IS the occupant. Re-check their
+  // eligibility for the destination exactly as a fresh booking would: a grade
+  // or seat allocation can have changed since the original was made.
+  const occupant = ctx.actor;
+  const releasedOwnSeat = await hasReleasedOwnSeat(
+    ctx.db,
+    occupant.id,
+    input.bookingDate,
+    slot.key,
+  );
+  assertOccupantMayBook(occupant, { hasReleasedOwnSeat: releasedOwnSeat });
 
   const { startsAt, endsAt } = deriveSlotBounds(
     input.bookingDate,
@@ -664,9 +667,11 @@ export async function editBooking(
             slot: slot.key,
             startsAt,
             endsAt,
-            bookedByUserId: existing.booking.bookedByUserId,
-            occupantUserId: existing.booking.occupantUserId,
-            source: existing.booking.source,
+            // The occupant is making this booking now — even when the row it
+            // replaces was a historical on-behalf one.
+            bookedByUserId: occupant.id,
+            occupantUserId: occupant.id,
+            source: "self",
             seriesId: null,
             now,
           })
@@ -678,10 +683,10 @@ export async function editBooking(
               slot: slot.key,
               startsAt,
               endsAt,
-              bookedByUserId: existing.booking.bookedByUserId,
-              occupantUserId: existing.booking.occupantUserId,
+              bookedByUserId: occupant.id,
+              occupantUserId: occupant.id,
               status: "confirmed",
-              source: existing.booking.source,
+              source: "self",
               seriesId: null,
               createdAt: now,
               updatedAt: now,
@@ -736,7 +741,7 @@ export async function editBooking(
     });
   } catch (err) {
     if (err instanceof BookingError) throw err;
-    await decorateOccupantConflict(err, ctx.db, existing.booking.occupantUserId, input.bookingDate, slot.key);
+    await decorateOccupantConflict(err, ctx.db, occupant.id, input.bookingDate, slot.key);
     return rethrowMapped(err);
   }
 }

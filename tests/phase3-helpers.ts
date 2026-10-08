@@ -4,8 +4,8 @@
  * The Phase 1 helpers create one seat and one user, which is enough to prove a
  * constraint but not enough to exercise a booking engine: the edge cases need
  * two desks (to move a booking between them), two bookable people (to prove the
- * occupant rule discriminates), somebody permitted to book on behalf, and an
- * admin.
+ * occupant rule discriminates), a fixed-grade manager, and an admin. Nobody
+ * can book on somebody else's behalf — that was removed at CBVA's request.
  *
  * Same isolation strategy as Phase 1 and for the same reason: a private floor,
  * a random tag, and dates in 2099 that the seed never touches, so the suite runs
@@ -80,11 +80,11 @@ export interface Phase3Fixtures {
   seatB: { id: string; code: string };
   /** An article: bookable grade, cannot book for anybody else. */
   article: schema.User;
-  /** A second article, for the on-behalf and occupant-conflict cases. */
+  /** A second article, for the occupant-conflict and refused-on-behalf cases. */
   colleague: schema.User;
-  /** A manager: fixed grade, may book on behalf, may not book for themselves. */
+  /** A manager: fixed grade, so may not book a hot desk for themselves. */
   manager: schema.User;
-  /** Admin/HR: may book on behalf, may block desks, may deactivate people. */
+  /** Admin/HR: may block desks, deactivate people, and cancel others' bookings. */
   admin: schema.User;
   roomId: string;
   roomName: string;

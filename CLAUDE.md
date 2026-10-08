@@ -349,7 +349,7 @@ src/
   lib/settings.ts         the one reader of the settings singleton
   lib/api.ts              the HTTP boundary: actor, zod, error -> status
   lib/qr.ts               per-desk check-in URLs and SVG codes
-  components/booking/     person-picker, edit dialog, the mutation hooks
+  components/booking/     edit dialog, the mutation hooks
   components/demo/        demo-panel — every demo affordance, in one place
   instrumentation.ts      + instrumentation-node.ts: the dev job interval
 drizzle/                  0000_initial_schema.sql (generated) + 0001_constraints.sql (hand-written)

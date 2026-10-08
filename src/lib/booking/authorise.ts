@@ -11,8 +11,25 @@ import type { Seat, User } from "@/lib/db/schema";
 /** Grades that hold an allocated desk and therefore must not consume a hot one. */
 const FIXED_GRADES = new Set(["partner", "director", "manager", "admin_staff"]);
 
-/** Grades permitted to book for somebody else — see ASSUMPTIONS A7. */
-const ON_BEHALF_GRADES = new Set(["manager", "director", "partner"]);
+/**
+ * Grades that may book a meeting room: Managers and above (CBVA, Oct 2026).
+ * Grade, not the admin flag — an HR/IT admin who isn't Manager grade or above
+ * can't book rooms. Everyone can still SEE the room grid.
+ */
+const ROOM_BOOKING_GRADES = new Set(["manager", "director", "partner"]);
+
+export function canBookMeetingRooms(actor: User): boolean {
+  return ROOM_BOOKING_GRADES.has(actor.grade);
+}
+
+export function assertMayBookMeetingRooms(actor: User): void {
+  if (!canBookMeetingRooms(actor)) {
+    throw new BookingError(
+      "NOT_PERMITTED_ROOMS",
+      "Meeting rooms can be booked by Managers and above.",
+    );
+  }
+}
 
 export function assertSignedIn(actor: User | null): asserts actor is User {
   if (!actor) {
@@ -21,15 +38,6 @@ export function assertSignedIn(actor: User | null): asserts actor is User {
   if (!actor.isActive) {
     throw new BookingError("FORBIDDEN", "This account is no longer active.");
   }
-}
-
-/**
- * PROJECT.md's grade table: "Manager … book on behalf of their team", plus the
- * admin/HR/IT staff who seat people for a living. Confirmed with the client
- * team in Phase 3; it narrows ASSUMPTIONS A7, which had assumed anyone could.
- */
-export function canBookOnBehalf(actor: User): boolean {
-  return actor.isAdmin || ON_BEHALF_GRADES.has(actor.grade);
 }
 
 /**
@@ -55,41 +63,59 @@ export interface OccupantContext {
   hasReleasedOwnSeat?: boolean;
 }
 
-export function assertOccupantMayBook(
-  occupant: User,
-  bookingForSelf: boolean,
-  context: OccupantContext = {},
-): void {
+/** May this person hold a hot desk for this slot? Always called with the actor. */
+export function assertOccupantMayBook(occupant: User, context: OccupantContext = {}): void {
   if (!occupant.isActive) {
     throw new BookingError(
       "OCCUPANT_INACTIVE",
-      `${occupant.displayName}'s account is no longer active, so a desk cannot be booked for them.`,
+      "This account is no longer active, so a desk cannot be booked for it.",
     );
   }
   if (context.hasReleasedOwnSeat) return;
   if (occupant.seatMode !== "bookable" || FIXED_GRADES.has(occupant.grade)) {
     throw new BookingError(
-      bookingForSelf ? "NOT_BOOKABLE_GRADE" : "OCCUPANT_NOT_BOOKABLE",
-      bookingForSelf
-        ? "You have an allocated desk, so there is nothing to book. Hot desks are for Assistant Manager grade and below."
-        : `${occupant.displayName} has an allocated desk, so a hot desk cannot be booked for them.`,
+      "NOT_BOOKABLE_GRADE",
+      "You have an allocated desk, so there is nothing to book. Hot desks are for Assistant Manager grade and below.",
     );
   }
 }
 
-export function assertMayBookFor(
+/**
+ * A desk is only ever booked by the person who will sit at it — for every
+ * grade, admins included. CBVA asked for booking on somebody else's behalf to
+ * be removed (Oct 2026; ASSUMPTIONS A7). Historical on-behalf rows are kept and
+ * still count in the analytics; nothing can create a new one.
+ *
+ * Call it FIRST, before any lookup, so the refusal is the same 403 whatever
+ * the desk or date — and can't be used to test whether an id is a real person.
+ * Eligibility (grade, active, released seat) is assertOccupantMayBook, later.
+ */
+export function assertBookingForSelf(actor: User, occupantUserId: string | undefined): void {
+  if (occupantUserId !== undefined && occupantUserId !== actor.id) {
+    throw new BookingError("NOT_PERMITTED_ON_BEHALF", "Desks can only be booked for yourself.");
+  }
+}
+
+/**
+ * Who may MOVE a booking (edit = cancel-and-rebook): only the person booked
+ * into it. Editing creates a new booking, so letting anyone else do it would
+ * be booking on their behalf by another route — an admin re-pointing somebody's
+ * Tuesday to a desk of the admin's choosing, or the booker of a historical
+ * on-behalf row minting a fresh one. Cancelling is a different rule
+ * (assertMayMutateBooking): the booker and admins may still cancel.
+ */
+export function assertMayEditBooking(
   actor: User,
-  occupant: User,
-  context: OccupantContext = {},
+  booking: { occupantUserId: string; bookedByUserId: string },
 ): void {
-  const forSelf = actor.id === occupant.id;
-  if (!forSelf && !canBookOnBehalf(actor)) {
+  if (booking.occupantUserId === actor.id) return;
+  if (booking.bookedByUserId === actor.id || actor.isAdmin) {
     throw new BookingError(
       "NOT_PERMITTED_ON_BEHALF",
-      "Booking for a colleague is available to managers and above, and to admin staff.",
+      "Only the person booked into a desk can change it. You can cancel it instead.",
     );
   }
-  assertOccupantMayBook(occupant, forSelf, context);
+  throw new BookingError("FORBIDDEN", "That is not your booking to change.");
 }
 
 /**

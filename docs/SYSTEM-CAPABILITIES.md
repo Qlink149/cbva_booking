@@ -30,8 +30,6 @@ a rule that keeps the data trustworthy once collected.
 must book a desk for each day they come into the office:
 
 - See the floor plan for any day in the booking window and pick a free desk.
-- Book for a colleague who is out of office themselves (a manager doing this
-  for their team, for instance) — see §4.
 - Check in on arrival, by scanning the QR code printed on the desk, so the
   system knows the booking turned into an actual day in the office.
 - See who else on their team is in on a given day, before they decide whether
@@ -43,7 +41,6 @@ must book a desk for each day they come into the office:
 **Managers, Directors and Partners** hold a permanently allocated desk and
 never need to book one. In addition, they can:
 
-- Book on behalf of anyone on their team.
 - Give their own desk back to the pool for a day they are working from home —
   the only way an allocated desk is ever counted as used or free, since an
   empty allocated desk otherwise tells the system nothing.
@@ -110,16 +107,12 @@ numbers honest — a desk nobody used does not get counted as occupied. Before
 release happens, the person gets one reminder, halfway through that window, in
 case they simply forgot to scan the QR code.
 
-**Who may book on behalf of someone else.** Only Managers, Directors,
-Partners and Admin/HR/IT staff can book for a colleague, and only for a
-colleague who is themselves eligible to book (not another fixed-seat holder).
-This stops the on-behalf feature from being used to work around the
-allocation rules.
+**Everyone books their own desk.** A desk can only be booked by the person who
+will sit at it — nobody, including administrators, can book one on somebody
+else's behalf. (Administrators can still cancel a booking if they need to.)
 
 **One desk per person, per day, per slot.** A person cannot hold two desks at
-once for the same time — but a manager booking a desk for a colleague who is
-genuinely free at that time is allowed, since that is a different person
-being seated, not the same person twice.
+once for the same time.
 
 ---
 

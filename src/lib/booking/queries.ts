@@ -5,7 +5,7 @@
  * authorisation of their own beyond "whose bookings are these" — keeping them
  * apart makes it obvious which functions can change something.
  */
-import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, or } from "drizzle-orm";
 
 import { schema, type Db } from "@/lib/db";
 
@@ -222,29 +222,4 @@ export async function futureBookingsForUser(db: Db, userId: string, from: Date) 
       ),
     )
     .orderBy(asc(schema.bookings.startsAt));
-}
-
-/** Bookable-grade, active staff — the on-behalf picker's list. */
-export async function bookablePeople(db: Db, query: string | null, limit = 20) {
-  const like = query ? `%${query.toLowerCase()}%` : null;
-  return db
-    .select({
-      id: schema.users.id,
-      displayName: schema.users.displayName,
-      email: schema.users.email,
-      grade: schema.users.grade,
-      team: schema.users.team,
-    })
-    .from(schema.users)
-    .where(
-      and(
-        eq(schema.users.seatMode, "bookable"),
-        eq(schema.users.isActive, true),
-        like
-          ? sql`(lower(${schema.users.displayName}) like ${like} or lower(${schema.users.email}) like ${like})`
-          : sql`true`,
-      ),
-    )
-    .orderBy(asc(schema.users.displayName))
-    .limit(limit);
 }

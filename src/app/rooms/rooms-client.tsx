@@ -55,6 +55,8 @@ interface RoomGridPayload {
   now: string;
   viewerId: string;
   viewerIsAdmin: boolean;
+  /** Managers and above. Everyone else gets a read-only grid. */
+  viewerCanBook: boolean;
   officeHours: { start: string; end: string };
   rooms: Array<{
     id: string;
@@ -134,6 +136,7 @@ export function RoomsClient() {
   });
 
   const hours = grid.data?.hours ?? [];
+  const canBook = grid.data?.viewerCanBook === true;
 
   /** roomId -> hour -> the booking occupying it. */
   const occupancy = useMemo(() => {
@@ -250,25 +253,31 @@ export function RoomsClient() {
             </Select>
           </Field>
 
-          <div className="flex items-center gap-3">
-            {selectionLabel ? (
-              <p className="text-sm text-ink-muted">
-                Selected <span className="tabular text-ink">{selectionLabel}</span>
-              </p>
-            ) : (
-              <p className="text-sm text-ink-subtle">
-                Click an hour, or drag across several, to select a range.
-              </p>
-            )}
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={openDialog}
-              disabled={!selection || !selectionIsFree(selection)}
-            >
-              Name this meeting
-            </Button>
-          </div>
+          {grid.data && !canBook ? (
+            <p className="text-sm text-ink-muted">
+              Meeting rooms are booked by Managers and above. You can see when each room is free.
+            </p>
+          ) : (
+            <div className="flex items-center gap-3">
+              {selectionLabel ? (
+                <p className="text-sm text-ink-muted">
+                  Selected <span className="tabular text-ink">{selectionLabel}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-ink-subtle">
+                  Click an hour, or drag across several, to select a range.
+                </p>
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={openDialog}
+                disabled={!selection || !selectionIsFree(selection)}
+              >
+                Name this meeting
+              </Button>
+            </div>
+          )}
         </CardBody>
       </Card>
 
@@ -339,12 +348,15 @@ export function RoomsClient() {
                       // your own desk, so "mine" reads the same way everywhere.
                       const mine =
                         booking !== null && booking.organiserUserId === grid.data?.viewerId;
+                      // A booked hour, or a viewer below Manager grade: shown,
+                      // never selectable.
+                      const locked = booking !== null || !canBook;
 
                       return (
                         <td key={hour} className="border-b border-hairline p-0">
                           <button
                             type="button"
-                            aria-disabled={booking !== null}
+                            aria-disabled={locked}
                             aria-pressed={inSelection}
                             aria-label={
                               booking
@@ -353,20 +365,20 @@ export function RoomsClient() {
                             }
                             title={booking ? `${booking.title} — ${booking.organiserName}` : undefined}
                             onPointerDown={() => {
-                              if (booking) return;
+                              if (locked) return;
                               beginSelection(room.id, hour);
                               setDragging(true);
                             }}
                             onPointerEnter={() => {
-                              if (!dragging || booking) return;
+                              if (!dragging || locked) return;
                               setSelection((s) => (s && s.roomId === room.id ? { ...s, to: hour } : s));
                             }}
                             onClick={(e) => {
-                              if (booking) return;
+                              if (locked) return;
                               if (e.shiftKey) beginSelection(room.id, hour, true);
                             }}
                             onKeyDown={(e) => {
-                              if (booking) return;
+                              if (locked) return;
                               if (e.key === " " || e.key === "Enter") {
                                 e.preventDefault();
                                 if (e.shiftKey) beginSelection(room.id, hour, true);
@@ -391,7 +403,9 @@ export function RoomsClient() {
                                   )
                                 : inSelection
                                   ? "bg-navy text-paper"
-                                  : "bg-surface text-ink-subtle hover:bg-surface-sunken",
+                                  : canBook
+                                    ? "bg-surface text-ink-subtle hover:bg-surface-sunken"
+                                    : "cursor-default bg-surface text-ink-subtle",
                             )}
                           >
                             {booking && isStart ? (

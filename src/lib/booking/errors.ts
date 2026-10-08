@@ -20,7 +20,7 @@ export type BookingErrorCode =
   | "FORBIDDEN"
   | "NOT_BOOKABLE_GRADE"
   | "NOT_PERMITTED_ON_BEHALF"
-  | "OCCUPANT_NOT_BOOKABLE"
+  | "NOT_PERMITTED_ROOMS"
   | "OCCUPANT_INACTIVE"
   /* the request does not describe a bookable thing */
   | "SEAT_NOT_FOUND"
@@ -57,7 +57,7 @@ const STATUS: Record<BookingErrorCode, number> = {
   FORBIDDEN: 403,
   NOT_BOOKABLE_GRADE: 403,
   NOT_PERMITTED_ON_BEHALF: 403,
-  OCCUPANT_NOT_BOOKABLE: 422,
+  NOT_PERMITTED_ROOMS: 403,
   OCCUPANT_INACTIVE: 422,
   SEAT_NOT_FOUND: 404,
   SEAT_NOT_BOOKABLE: 422,

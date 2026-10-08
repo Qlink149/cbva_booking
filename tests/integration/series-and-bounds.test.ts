@@ -127,6 +127,68 @@ describe("recurring bookings", { timeout: 180_000 }, () => {
     expect(again.skippedExisting).toBe(datesUnderTest().length);
   });
 
+  // Booking on somebody's behalf was removed at CBVA's request (Oct 2026).
+  it("refuses a series for somebody else — admins included — and creates nothing", async () => {
+    for (const actor of [f.manager, f.admin]) {
+      await expect(
+        createSeries(
+          { db, clock, actor },
+          {
+            seatCode: f.seatA.code,
+            slot: AM.key,
+            weekdays: weekdaysUnderTest(),
+            startsOn: windowDates[0]!,
+            occupantUserId: f.article.id,
+          },
+        ),
+      ).rejects.toMatchObject({ code: "NOT_PERMITTED_ON_BEHALF" });
+    }
+    const rows = await db
+      .select({ id: schema.bookingSeries.id })
+      .from(schema.bookingSeries)
+      .where(eq(schema.bookingSeries.seatId, f.seatA.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  /**
+   * A series set up on somebody's behalf before the removal. None existed when
+   * it shipped, but if one ever turns up it must be ended once — not booked
+   * from, not failed per occurrence (that would email a false "desk taken"
+   * for every new date), and never allowed to throw and abort the job run.
+   */
+  it("ends a leftover on-behalf series once: books nothing, emails nobody", async () => {
+    const [legacy] = await db
+      .insert(schema.bookingSeries)
+      .values({
+        occupantUserId: f.article.id,
+        createdByUserId: f.manager.id,
+        seatId: f.seatA.id,
+        slot: AM.key,
+        weekdays: weekdaysUnderTest(),
+        startsOn: windowDates[0]!,
+        status: "active",
+        createdAt: clock.now(),
+        updatedAt: clock.now(),
+      })
+      .returning();
+
+    const run = await materialiseSeries({ db, clock, onlySeriesIds: [legacy!.id] });
+    expect(run.created).toBe(0);
+    expect(run.failed).toHaveLength(0);
+    expect(run.notified).toBe(0);
+    expect(run.legacyOnBehalfEnded).toBe(1);
+
+    const [after] = await db
+      .select({ status: schema.bookingSeries.status })
+      .from(schema.bookingSeries)
+      .where(eq(schema.bookingSeries.id, legacy!.id));
+    expect(after!.status).toBe("ended");
+
+    // Ended means it's out of the job's way for good.
+    const again = await materialiseSeries({ db, clock, onlySeriesIds: [legacy!.id] });
+    expect(again.seriesConsidered).toBe(0);
+  });
+
   /** THE TOMBSTONE. Cancel one day; the job must not put it back. */
   it("does not resurrect a deliberately cancelled occurrence", async () => {
     const { series } = await makeSeries();
