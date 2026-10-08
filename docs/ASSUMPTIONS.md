@@ -972,3 +972,27 @@ interviews, inductions and client visits. If CBVA expects them to, add
 `admin_staff` to `ROOM_BOOKING_GRADES`. That is a one-line change, and the
 tests in `tests/unit/booking-rules.test.ts` and
 `tests/integration/room-rules.test.ts` say which way it is set.
+
+### A31 — 🟡 Rooms keep the current hour bookable, and have no booking window
+
+**Assumed:** two rules for meeting-room dates that CBVA hasn't confirmed.
+
+1. **The current hour stays bookable.** At 10:05 the 10:00 hour can still be
+   booked, because the room is empty right now and a team wants it. Hours that
+   have fully ended are refused. This mirrors desks, which keep the current
+   slot open for somebody who walks in.
+2. **No booking window for rooms.** Desks can only be booked five working days
+   ahead. Rooms can be booked any working day in the future, as they always
+   could. Nobody has asked for a cap, so adding one would change behaviour
+   without a request.
+
+Weekends, public holidays and impossible dates are refused regardless. Those
+aren't assumptions.
+
+**Affects:** `src/lib/rooms/validation.ts` → `firstOpenHour()` /
+`roomDateIssue()`, enforced in `src/lib/rooms/service.ts`, shown in the grid via
+`GET /api/rooms` → `firstOpenHour`.
+
+**If CBVA wants otherwise:** a cap is one call to `isBookableDate` from
+`booking-days.ts` in `roomDateIssue`. Refusing the current hour is
+`firstOpenHour + 1` for today.

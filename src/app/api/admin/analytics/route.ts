@@ -14,7 +14,7 @@ import {
   seatUtilisation,
 } from "@/lib/analytics/queries";
 import { bookableDates, isWeekend } from "@/lib/booking-days";
-import { schema } from "@/lib/db";
+import { loadHolidays } from "@/lib/holidays";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -44,10 +44,7 @@ export async function GET(request: Request) {
     const settings = await getSettings(ctx.db);
 
     if (view === "today") {
-      const holidayRows = await ctx.db
-        .select({ d: schema.holidays.holidayDate })
-        .from(schema.holidays);
-      const holidays = new Set(holidayRows.map((h) => h.d));
+      const holidays = await loadHolidays(ctx.db);
 
       // "Today" means the demo clock's today, not the server's — otherwise the
       // one screen a partner is watching while somebody advances the clock is
@@ -81,10 +78,7 @@ export async function GET(request: Request) {
     }
 
     if (view === "forecast") {
-      const holidayRows = await ctx.db
-        .select({ d: schema.holidays.holidayDate })
-        .from(schema.holidays);
-      const holidays = new Set(holidayRows.map((h) => h.d));
+      const holidays = await loadHolidays(ctx.db);
 
       // The same function the date strip renders and the write path enforces.
       // A forecast for a day nobody can book is not a forecast.

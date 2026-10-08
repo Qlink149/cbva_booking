@@ -49,6 +49,43 @@ afterAll(async () => {
   await pool.end();
 });
 
+describe("when a meeting room may be booked", () => {
+  const book = (actor: User, clockAt: Date, date: string, startHour: number) =>
+    createRoomBooking(
+      { db, clock: new FixedClock(clockAt), actor },
+      { roomId: f.roomId, title: "Date rules", date, startHour, endHour: startHour + 1 },
+    );
+
+  it("refuses a weekend", async () => {
+    // 2099-01-10 is a Saturday.
+    await expect(book(f.manager, MONDAY_0700_IST, "2099-01-10", 10)).rejects.toMatchObject({
+      code: "ROOM_DATE_NOT_BOOKABLE",
+    });
+  });
+
+  it("refuses a public holiday", async () => {
+    const holiday = "2099-01-06"; // a Tuesday, made a holiday for this test only
+    await db.insert(schema.holidays).values({ holidayDate: holiday, name: "Room rules test" });
+    try {
+      await expect(book(f.manager, MONDAY_0700_IST, holiday, 10)).rejects.toMatchObject({
+        code: "ROOM_DATE_NOT_BOOKABLE",
+      });
+    } finally {
+      await db.delete(schema.holidays).where(eq(schema.holidays.holidayDate, holiday));
+    }
+  });
+
+  it("keeps the current hour open and refuses one that's over", async () => {
+    // Monday 5 January 2099, 10:05 IST.
+    const tenPastTen = new Date("2099-01-05T04:35:00Z");
+    await expect(book(f.manager, tenPastTen, MONDAY, 9)).rejects.toMatchObject({
+      code: "ROOM_DATE_NOT_BOOKABLE",
+    });
+    const current = await book(f.manager, tenPastTen, MONDAY, 10);
+    expect(current.booking.status).toBe("confirmed");
+  });
+});
+
 describe("who may book a meeting room — Managers and above (CBVA, Oct 2026)", () => {
   it("lets a manager book", async () => {
     const created = await createRoomBooking(ctx(f.manager), {

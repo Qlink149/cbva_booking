@@ -29,6 +29,7 @@ export type BookingErrorCode =
   | "DATE_OUTSIDE_WINDOW"
   | "ROOM_NOT_FOUND"
   | "ROOM_NOT_BOOKABLE"
+  | "ROOM_DATE_NOT_BOOKABLE"
   | "OUTSIDE_OFFICE_HOURS"
   | "INVALID_RANGE"
   /* the request is too late, or aimed at something that moved */
@@ -65,6 +66,7 @@ const STATUS: Record<BookingErrorCode, number> = {
   DATE_OUTSIDE_WINDOW: 422,
   ROOM_NOT_FOUND: 404,
   ROOM_NOT_BOOKABLE: 422,
+  ROOM_DATE_NOT_BOOKABLE: 422,
   OUTSIDE_OFFICE_HOURS: 422,
   INVALID_RANGE: 422,
   PAST_CUTOFF: 409,

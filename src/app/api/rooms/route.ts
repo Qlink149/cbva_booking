@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { handle, routeContext } from "@/lib/api";
 import { canBookMeetingRooms } from "@/lib/booking/authorise";
 import { roomDay } from "@/lib/rooms/service";
+import { firstOpenHour } from "@/lib/rooms/validation";
 import { formatInTimeZone } from "date-fns-tz";
 import { getSettings } from "@/lib/settings";
 
@@ -28,6 +29,8 @@ export async function GET(request: Request) {
       viewerIsAdmin: ctx.actor.isAdmin,
       /** Managers and above. Everyone can view the grid; only they can book. */
       viewerCanBook: canBookMeetingRooms(ctx.actor),
+      /** Hours before this are over — the server's own rule, so the grid can't drift from it. */
+      firstOpenHour: firstOpenHour(date, ctx.clock.now(), settings.timezone),
     });
   });
 }

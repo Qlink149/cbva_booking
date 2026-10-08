@@ -23,10 +23,16 @@ import { BookingError, rethrowMapped } from "@/lib/booking/errors";
 import type { Clock } from "@/lib/clock";
 import { schema, type Db } from "@/lib/db";
 import type { RoomBooking, User } from "@/lib/db/schema";
+import { loadHolidays } from "@/lib/holidays";
 import { enqueueNotification } from "@/lib/notifications/outbox";
 import { renderRoomNotification } from "@/lib/notifications/render";
 import { getSettings } from "@/lib/settings";
-import { officeHourColumns, roomBookingSchema, type RoomBookingRequest } from "@/lib/rooms/validation";
+import {
+  officeHourColumns,
+  roomBookingSchema,
+  roomDateIssue,
+  type RoomBookingRequest,
+} from "@/lib/rooms/validation";
 
 export interface RoomServiceContext {
   db: Db;
@@ -169,6 +175,18 @@ export async function createRoomBooking(
     );
   }
   const req = parsed.data;
+
+  // Impossible dates, weekends, holidays and hours already over (the current
+  // hour stays open) — before the room lookup, so an unbookable room can't mask
+  // the more basic refusal. See roomDateIssue / firstOpenHour.
+  const dateIssue = roomDateIssue(
+    req.date,
+    req.startHour,
+    now,
+    await loadHolidays(ctx.db),
+    settings.timezone,
+  );
+  if (dateIssue) throw new BookingError("ROOM_DATE_NOT_BOOKABLE", dateIssue);
 
   const [room] = await ctx.db
     .select()

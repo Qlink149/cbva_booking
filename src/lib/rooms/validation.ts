@@ -12,8 +12,10 @@
  * legal way to hold a room twice. ADR-004 added a CHECK for it at the database
  * level; this rejects it one layer earlier, with a sentence instead of a 23514.
  */
+import { formatInTimeZone } from "date-fns-tz";
 import { z } from "zod";
 
+import { isWeekend, isWorkingDay } from "@/lib/booking-days";
 import { minutesOfDay } from "@/lib/slots";
 import type { OfficeHours } from "@/lib/settings";
 
@@ -73,6 +75,60 @@ export function roomBookingSchema(officeHours: OfficeHours) {
 }
 
 export type RoomBookingSchema = ReturnType<typeof roomBookingSchema>;
+
+/** Is "yyyy-MM-dd" a date that exists? "2099-02-30" matches the regex but isn't. */
+function isRealDate(date: string): boolean {
+  const d = new Date(`${date}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === date;
+}
+
+/**
+ * The first hour on `date` that can still be booked, in the firm's timezone:
+ * 0 for a future date (every hour open), 24 for a past date (none open), and
+ * the current hour for today. THE one definition of "this hour is over" — the
+ * server refuses with it and /api/rooms sends it to the grid, so the two can't
+ * drift.
+ *
+ * The current hour stays open, mirroring desks, which keep the current slot
+ * bookable for somebody who walks in: at 10:05 the 10:00 hour is bookable,
+ * 09:00 is over.
+ */
+export function firstOpenHour(date: string, now: Date, timezone: string): number {
+  const [today, hour] = formatInTimeZone(now, timezone, "yyyy-MM-dd|H").split("|");
+  if (date > today!) return 0;
+  if (date < today!) return 24;
+  return Number(hour);
+}
+
+/**
+ * Whether a room booking's date and start hour are ones the product accepts.
+ *
+ * Rooms had none of the desk-side date rules: a room could be booked for a
+ * weekend, a public holiday, or a time already gone (adapted from PR #4).
+ * Booking an hour that is already over is a data-entry error, and it would land
+ * in the room analytics as time the room was held.
+ *
+ * Deliberately NOT the desks' five-working-day window (ASSUMPTIONS A31).
+ * Pure and clock-injected, so it's unit-testable without a database.
+ */
+export function roomDateIssue(
+  date: string,
+  startHour: number,
+  now: Date,
+  holidays: ReadonlySet<string>,
+  timezone: string,
+): string | null {
+  if (!isRealDate(date)) return "That date does not exist.";
+  if (!isWorkingDay(date, holidays)) {
+    return isWeekend(date)
+      ? "Rooms cannot be booked on a weekend."
+      : "Rooms cannot be booked on a public holiday.";
+  }
+  if (startHour < firstOpenHour(date, now, timezone)) {
+    return "That hour is already over. Choose the current hour or a later one.";
+  }
+  return null;
+}
 
 /** The hour columns the grid draws, from the same settings value. */
 export function officeHourColumns(officeHours: OfficeHours): number[] {

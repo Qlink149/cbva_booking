@@ -35,6 +35,7 @@ import { cancelBooking, createBooking, type ServiceContext } from "@/lib/booking
 import type { Clock } from "@/lib/clock";
 import { schema, type Db } from "@/lib/db";
 import type { BookingSeries, User } from "@/lib/db/schema";
+import { loadHolidays } from "@/lib/holidays";
 import { enqueueNotification } from "@/lib/notifications/outbox";
 import { renderSeatNotification } from "@/lib/notifications/render";
 import { getSettings } from "@/lib/settings";
@@ -116,8 +117,7 @@ export async function materialiseSeries(
   const now = clock.now();
   const settings = await getSettings(db);
 
-  const holidayRows = await db.select({ d: schema.holidays.holidayDate }).from(schema.holidays);
-  const holidays = new Set(holidayRows.map((h) => h.d));
+  const holidays = await loadHolidays(db);
 
   const windowDates = bookableDates({
     now,

@@ -6,7 +6,8 @@ import { auth } from "@/lib/adapters";
 import { bookableDates } from "@/lib/booking-days";
 import { getSettings } from "@/lib/settings";
 import { getClock } from "@/lib/clock";
-import { db, schema } from "@/lib/db";
+import { db } from "@/lib/db";
+import { loadHolidays } from "@/lib/holidays";
 import { floorplanDetectionReport } from "@/lib/floorplan";
 import { Card, CardBody, CardHeader, CardTitle, Table, Td, Th } from "@/components/ui/primitives";
 
@@ -22,15 +23,13 @@ export default async function Page() {
   const clock = await getClock();
   const database = db();
   const settings = await getSettings(database);
-  const holidayRows = await database
-    .select({ holidayDate: schema.holidays.holidayDate })
-    .from(schema.holidays);
+  const holidays = await loadHolidays(database);
 
   const dates = bookableDates({
     now: clock.now(),
     workingDays: 1,
     calendarBound: settings.bookingWindowDays,
-    holidays: new Set(holidayRows.map((h) => h.holidayDate)),
+    holidays,
     timezone: settings.timezone,
   });
   const date = dates[0] ?? "2026-01-01";
