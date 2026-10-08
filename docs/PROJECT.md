@@ -25,10 +25,10 @@ design decision is judged against whether it produces trustworthy occupancy data
 |---|---|---|
 | Partner | Fixed | Read the analytics. Book meeting rooms. |
 | Director | Fixed | As above. |
-| Manager | Fixed | Book rooms; book on behalf of their team. |
+| Manager | Fixed | Book rooms. |
 | Assistant Manager | **Books** | Book a desk for each day in office. |
 | Article | **Books** | Same. The largest group — 62 of 141. |
-| Admin / HR / IT | Fixed | Book on behalf; manage seat inventory; read analytics. |
+| Admin / HR / IT | Fixed | Manage seat inventory; read analytics. |
 
 Floor 4 today: **141 desks, 141 people, 47 fixed / 94 who must book against 93
 bookable desks** (one of the 141, PD-18, is blocked — out of service) — supply
@@ -45,8 +45,9 @@ see `docs/OPEN-QUESTIONS.md` for the full range this could actually be.
   desk. Moving the firm to hourly booking is a settings change (ADR-020).
 - **One active booking per desk, per date, per slot.** Enforced by the database.
 - **One desk per person, per date, per slot.** Also enforced by the database,
-  and keyed on the *occupant* — so booking for a colleague who is free is
-  allowed, and booking a second desk for yourself is not (ADR-022).
+  and keyed on the *occupant* — booking a second desk for yourself is
+  refused (ADR-022). Nobody books on somebody else's behalf: CBVA had it
+  removed in Oct 2026 (ASSUMPTIONS A7).
 - Cancelling or auto-releasing frees the slot **without deleting the row** — the
   history is the analytics.
 - **Auto-release**: a booking not checked into within the grace window
@@ -90,8 +91,9 @@ Load-bearing details:
 - `seats.status` (`bookable`/`fixed`/`blocked`/`decommissioned`) is the desk's
   own state. The seven **visual** statuses are a different, richer vocabulary —
   they combine seat status with the viewer's relationship to a booking.
-- `bookings.booked_by_user_id` vs `occupant_user_id` — different when someone
-  books on behalf of a colleague. Analytics must count the **occupant**.
+- `bookings.booked_by_user_id` vs `occupant_user_id` — always the same for new
+  bookings (book-on-behalf was removed, Oct 2026), but different on historical
+  on-behalf rows, which are kept. Analytics must count the **occupant**.
 - `badge_events` is a stub with no feed behind it, modelled now so a real reader
   webhook lands later with no schema change.
 - `settings` is a singleton, enforced by a unique index on `((true))`.

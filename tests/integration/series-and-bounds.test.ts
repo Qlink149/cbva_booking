@@ -127,6 +127,56 @@ describe("recurring bookings", { timeout: 180_000 }, () => {
     expect(again.skippedExisting).toBe(datesUnderTest().length);
   });
 
+  // Booking on somebody's behalf was removed at CBVA's request (Oct 2026).
+  it("refuses a series for somebody else — admins included — and creates nothing", async () => {
+    for (const actor of [f.manager, f.admin]) {
+      await expect(
+        createSeries(
+          { db, clock, actor },
+          {
+            seatCode: f.seatA.code,
+            slot: AM.key,
+            weekdays: weekdaysUnderTest(),
+            startsOn: windowDates[0]!,
+            occupantUserId: f.article.id,
+          },
+        ),
+      ).rejects.toMatchObject({ code: "NOT_PERMITTED_ON_BEHALF" });
+    }
+    const rows = await db
+      .select({ id: schema.bookingSeries.id })
+      .from(schema.bookingSeries)
+      .where(eq(schema.bookingSeries.seatId, f.seatA.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  /**
+   * A series set up on somebody's behalf before the removal. None existed when
+   * it shipped, but if one ever turns up its occurrences must fail quietly: a
+   * rethrow here aborts the whole job run, auto-release and email included.
+   */
+  it("fails a leftover on-behalf series quietly instead of breaking the job run", async () => {
+    const [legacy] = await db
+      .insert(schema.bookingSeries)
+      .values({
+        occupantUserId: f.article.id,
+        createdByUserId: f.manager.id,
+        seatId: f.seatA.id,
+        slot: AM.key,
+        weekdays: weekdaysUnderTest(),
+        startsOn: windowDates[0]!,
+        status: "active",
+        createdAt: clock.now(),
+        updatedAt: clock.now(),
+      })
+      .returning();
+
+    const run = await materialiseSeries({ db, clock, onlySeriesIds: [legacy!.id] });
+    expect(run.created).toBe(0);
+    expect(run.failed.length).toBe(datesUnderTest().length);
+    expect(run.failed.every((x) => x.code === "NOT_PERMITTED_ON_BEHALF")).toBe(true);
+  });
+
   /** THE TOMBSTONE. Cancel one day; the job must not put it back. */
   it("does not resurrect a deliberately cancelled occurrence", async () => {
     const { series } = await makeSeries();

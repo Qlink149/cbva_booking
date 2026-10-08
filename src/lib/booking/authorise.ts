@@ -11,9 +11,6 @@ import type { Seat, User } from "@/lib/db/schema";
 /** Grades that hold an allocated desk and therefore must not consume a hot one. */
 const FIXED_GRADES = new Set(["partner", "director", "manager", "admin_staff"]);
 
-/** Grades permitted to book for somebody else — see ASSUMPTIONS A7. */
-const ON_BEHALF_GRADES = new Set(["manager", "director", "partner"]);
-
 export function assertSignedIn(actor: User | null): asserts actor is User {
   if (!actor) {
     throw new BookingError("NOT_SIGNED_IN", "You need to be signed in to do that.");
@@ -21,15 +18,6 @@ export function assertSignedIn(actor: User | null): asserts actor is User {
   if (!actor.isActive) {
     throw new BookingError("FORBIDDEN", "This account is no longer active.");
   }
-}
-
-/**
- * PROJECT.md's grade table: "Manager … book on behalf of their team", plus the
- * admin/HR/IT staff who seat people for a living. Confirmed with the client
- * team in Phase 3; it narrows ASSUMPTIONS A7, which had assumed anyone could.
- */
-export function canBookOnBehalf(actor: User): boolean {
-  return actor.isAdmin || ON_BEHALF_GRADES.has(actor.grade);
 }
 
 /**
@@ -55,25 +43,31 @@ export interface OccupantContext {
   hasReleasedOwnSeat?: boolean;
 }
 
-export function assertOccupantMayBook(
-  occupant: User,
-  bookingForSelf: boolean,
-  context: OccupantContext = {},
-): void {
+export function assertOccupantMayBook(occupant: User, context: OccupantContext = {}): void {
   if (!occupant.isActive) {
     throw new BookingError(
       "OCCUPANT_INACTIVE",
-      `${occupant.displayName}'s account is no longer active, so a desk cannot be booked for them.`,
+      "This account is no longer active, so a desk cannot be booked for it.",
     );
   }
   if (context.hasReleasedOwnSeat) return;
   if (occupant.seatMode !== "bookable" || FIXED_GRADES.has(occupant.grade)) {
     throw new BookingError(
-      bookingForSelf ? "NOT_BOOKABLE_GRADE" : "OCCUPANT_NOT_BOOKABLE",
-      bookingForSelf
-        ? "You have an allocated desk, so there is nothing to book. Hot desks are for Assistant Manager grade and below."
-        : `${occupant.displayName} has an allocated desk, so a hot desk cannot be booked for them.`,
+      "NOT_BOOKABLE_GRADE",
+      "You have an allocated desk, so there is nothing to book. Hot desks are for Assistant Manager grade and below.",
     );
+  }
+}
+
+/**
+ * A desk is only ever booked by the person who will sit at it — for every
+ * grade, admins included. CBVA asked for booking on somebody else's behalf to
+ * be removed (Oct 2026; ASSUMPTIONS A7). Historical on-behalf rows are kept and
+ * still count in the analytics; nothing can create a new one.
+ */
+export function assertBookingForSelf(actor: User, occupantUserId: string | undefined): void {
+  if (occupantUserId !== undefined && occupantUserId !== actor.id) {
+    throw new BookingError("NOT_PERMITTED_ON_BEHALF", "Desks can only be booked for yourself.");
   }
 }
 
@@ -82,14 +76,8 @@ export function assertMayBookFor(
   occupant: User,
   context: OccupantContext = {},
 ): void {
-  const forSelf = actor.id === occupant.id;
-  if (!forSelf && !canBookOnBehalf(actor)) {
-    throw new BookingError(
-      "NOT_PERMITTED_ON_BEHALF",
-      "Booking for a colleague is available to managers and above, and to admin staff.",
-    );
-  }
-  assertOccupantMayBook(occupant, forSelf, context);
+  assertBookingForSelf(actor, occupant.id);
+  assertOccupantMayBook(occupant, context);
 }
 
 /**

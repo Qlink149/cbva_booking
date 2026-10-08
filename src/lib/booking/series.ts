@@ -24,7 +24,11 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { writeAudit } from "@/lib/audit";
-import { assertSignedIn, assertMayBookFor } from "@/lib/booking/authorise";
+import {
+  assertBookingForSelf,
+  assertMayBookFor,
+  assertSignedIn,
+} from "@/lib/booking/authorise";
 import { BookingError, isBookingError } from "@/lib/booking/errors";
 import { bookableDates } from "@/lib/booking-days";
 import { cancelBooking, createBooking, type ServiceContext } from "@/lib/booking/service";
@@ -51,9 +55,13 @@ const ABSORBED = new Set([
   "DATE_OUTSIDE_WINDOW",
   "UNKNOWN_SLOT",
   "NOT_BOOKABLE_GRADE",
-  "OCCUPANT_NOT_BOOKABLE",
   "OCCUPANT_INACTIVE",
   "BOOKING_CONFLICT",
+  // A series set up on somebody's behalf before that was removed (Oct 2026).
+  // None existed when it was removed, but if one ever does it must fail its
+  // occurrences quietly — rethrowing would abort the whole job run, taking
+  // auto-release and email dispatch down with it every five minutes.
+  "NOT_PERMITTED_ON_BEHALF",
 ]);
 
 export interface SeriesFailure {
@@ -156,9 +164,9 @@ export async function materialiseSeries(
   result.seriesConsidered = rows.length;
 
   for (const { series, seatCode, occupant } of rows) {
-    // The actor is the person who set the series up, loaded fresh — so `source`
-    // stays self/on_behalf correctly and the audit row names a real person
-    // rather than being attributed to a null job actor.
+    // The actor is the person who set the series up, loaded fresh — so the
+    // audit row names a real person rather than a null job actor, and the
+    // same book-for-yourself rule applies to every occurrence.
     const creator = await loadUser(db, series.createdByUserId);
     if (!creator) continue;
 
@@ -352,11 +360,9 @@ export async function createSeries(
     .limit(1);
   if (!seat) throw new BookingError("SEAT_NOT_FOUND", "That desk is not on the floor plan.");
 
-  const occupant =
-    input.occupantUserId && input.occupantUserId !== actor.id
-      ? await loadUser(db, input.occupantUserId)
-      : actor;
-  if (!occupant) throw new BookingError("USER_NOT_FOUND", "That colleague is not on the list.");
+  // Refused before any lookup, as in createBooking.
+  assertBookingForSelf(actor, input.occupantUserId);
+  const occupant = actor;
 
   // Authorised once, here, on the same rules a single booking uses. The
   // materialiser re-checks per occurrence anyway because a grade or a seat

@@ -9,7 +9,11 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { canBookOnBehalf, assertMayBookFor, assertSeatBookable } from "@/lib/booking/authorise";
+import {
+  assertBookingForSelf,
+  assertMayBookFor,
+  assertSeatBookable,
+} from "@/lib/booking/authorise";
 import { BookingError, mapPgError } from "@/lib/booking/errors";
 import { assertBeforeCutoff, cutoffInstant, isPastCutoff, requireSlot } from "@/lib/booking/rules";
 import { officeHourColumns, roomBookingSchema } from "@/lib/rooms/validation";
@@ -257,16 +261,28 @@ const person = (over: Partial<User>): User =>
   }) as User;
 
 describe("who may book for whom — ASSUMPTIONS A7", () => {
-  it("lets managers, directors, partners and admin staff book on behalf", () => {
-    expect(canBookOnBehalf(person({ grade: "manager" }))).toBe(true);
-    expect(canBookOnBehalf(person({ grade: "director" }))).toBe(true);
-    expect(canBookOnBehalf(person({ grade: "partner" }))).toBe(true);
-    expect(canBookOnBehalf(person({ grade: "admin_staff", isAdmin: true }))).toBe(true);
+  // CBVA asked for booking on somebody's behalf to be removed (Oct 2026).
+  it("refuses booking for somebody else, for every grade — admins included", () => {
+    const occupant = person({ id: "o", grade: "article" });
+    for (const actor of [
+      person({ id: "a", grade: "article" }),
+      person({ id: "am", grade: "assistant_manager" }),
+      person({ id: "m", grade: "manager", seatMode: "fixed" }),
+      person({ id: "d", grade: "director", seatMode: "fixed" }),
+      person({ id: "p", grade: "partner", seatMode: "fixed" }),
+      person({ id: "s", grade: "admin_staff", seatMode: "fixed", isAdmin: true }),
+    ]) {
+      expect(() => assertMayBookFor(actor, occupant), actor.grade).toThrow(
+        /only be booked for yourself/,
+      );
+    }
   });
 
-  it("does not let an article or an assistant manager book for somebody else", () => {
-    expect(canBookOnBehalf(person({ grade: "article" }))).toBe(false);
-    expect(canBookOnBehalf(person({ grade: "assistant_manager" }))).toBe(false);
+  it("refuses an occupant id that isn't the caller, before looking anybody up", () => {
+    const me = person({ id: "me" });
+    expect(() => assertBookingForSelf(me, "someone-else")).toThrow(/only be booked for yourself/);
+    expect(() => assertBookingForSelf(me, "me")).not.toThrow();
+    expect(() => assertBookingForSelf(me, undefined)).not.toThrow();
   });
 
   it("stops a partner consuming a hot desk", () => {
@@ -276,10 +292,9 @@ describe("who may book for whom — ASSUMPTIONS A7", () => {
     expect(() => assertMayBookFor(partner, partner)).toThrow(/allocated desk/);
   });
 
-  it("stops a desk being booked for a deactivated colleague", () => {
-    const manager = person({ id: "m", grade: "manager", seatMode: "fixed" });
+  it("stops a deactivated account booking a desk", () => {
     const gone = person({ id: "g", isActive: false });
-    expect(() => assertMayBookFor(manager, gone)).toThrow(/no longer active/);
+    expect(() => assertMayBookFor(gone, gone)).toThrow(/no longer active/);
   });
 
   it("refuses a desk that is not bookable, saying which kind of not", () => {

@@ -340,6 +340,17 @@ expected in**. Replace with CBVA's official holiday circular before go-live.
 
 ### A7 — Who may book on behalf of someone else
 
+**RESOLVED (Oct 2026): nobody.** CBVA asked for booking on somebody else's
+behalf to be removed, for every grade, admins included. A desk is only ever
+booked by the person who sits at it (`assertBookingForSelf()` in
+`src/lib/booking/authorise.ts`), and the same rule applies to recurring series.
+Historical on-behalf bookings are kept and still count in the analytics, under
+their occupant. Admins can still **cancel** somebody else's booking. Meeting
+rooms never had a book-for-someone-else path. The seed no longer generates
+on-behalf bookings. `GET /api/people` and the person picker are gone.
+
+The rest of this entry is the earlier assumption, kept for the record.
+
 **Assumed (revised in Phase 3):** `is_admin`, plus Manager, Director and
 Partner grades. The occupant must additionally be bookable-grade and active.
 

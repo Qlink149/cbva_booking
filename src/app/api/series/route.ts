@@ -27,6 +27,7 @@ const postSchema = z.object({
   weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7),
   startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  /** Must be your own id, or omitted — see the same field on /api/bookings. */
   occupantUserId: z.string().uuid().optional(),
 });
 

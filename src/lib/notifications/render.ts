@@ -191,7 +191,9 @@ function seatLines(c: SeatNotificationContext): string[] {
 
 export type SeatNotificationKind = Exclude<
   NotificationKind,
-  "room_confirmed" | "room_cancelled"
+  // booked_on_your_behalf is history-only: it labels old outbox rows, and
+  // nothing can render or send a new one.
+  "room_confirmed" | "room_cancelled" | "booked_on_your_behalf"
 >;
 
 export function renderSeatNotification(
@@ -208,31 +210,15 @@ export function renderSeatNotification(
   switch (kind) {
     case "booking_confirmed": {
       const subject = "Desk " + c.seatCode + " booked for " + dateLong;
-      const intro = c.onBehalf
-        ? "You have booked a desk for " + c.occupantName + "."
-        : "Your desk is booked.";
+      const intro = "Your desk is booked.";
       return {
         subject,
         html: layout(
           "Booking confirmed",
-          paragraph(intro) + facts + (c.onBehalf ? row("For", c.occupantName) : ""),
+          paragraph(intro) + facts,
           "Check in when you arrive. A desk nobody checks into is released back to the floor and given to somebody else.",
         ),
         text: plain(subject, [intro, ...seatLines(c)]),
-      };
-    }
-
-    case "booked_on_your_behalf": {
-      const subject = c.bookerName + " booked desk " + c.seatCode + " for you";
-      const intro = c.bookerName + " has booked a desk for you.";
-      return {
-        subject,
-        html: layout(
-          "A desk has been booked for you",
-          paragraph(intro) + facts + row("Booked by", c.bookerName),
-          "If you are not coming in, please cancel it so the desk goes back into the pool.",
-        ),
-        text: plain(subject, [intro, ...seatLines(c), "Booked by: " + c.bookerName]),
       };
     }
 

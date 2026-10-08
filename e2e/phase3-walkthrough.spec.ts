@@ -2,7 +2,7 @@
  * The Phase 3 walkthrough, as one spec.
  *
  * Sign in as an assistant manager, book a desk, see the confirmation in the
- * demo inbox, check in by QR, book on behalf of a colleague, cancel, then
+ * demo inbox, check in by QR, cancel, then
  * advance the clock and watch a different booking auto-release.
  *
  * It runs in order and shares state between tests deliberately — it is a

@@ -21,6 +21,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { writeAudit } from "@/lib/audit";
 import {
+  assertBookingForSelf,
   assertMayBookFor,
   assertMayMutateBooking,
   assertSeatBookable,
@@ -271,7 +272,12 @@ export interface CreateBookingInput {
   seatCode: string;
   bookingDate: string;
   slot: string;
-  /** Omit to book for yourself. */
+  /**
+   * Only ever the actor's own id, or omitted. Anything else is refused: desks
+   * are booked by the person who sits at them (assertBookingForSelf). Kept as
+   * an input so a stale client asking to book for somebody else gets a clear
+   * refusal rather than silently booking the desk for itself.
+   */
   occupantUserId?: string;
   /**
    * Set by the recurring-booking materialiser, which reuses this function
@@ -323,13 +329,10 @@ export async function createBooking(
   const seat: Seat = seatRow!.seat;
   const zone = seatRow!.zoneCode;
 
-  const occupant =
-    input.occupantUserId && input.occupantUserId !== ctx.actor.id
-      ? await userById(ctx.db, input.occupantUserId)
-      : ctx.actor;
-  if (!occupant) {
-    throw new BookingError("USER_NOT_FOUND", "That colleague is not on the staff list.");
-  }
+  // Refused before any lookup, so the error can't be used to test whether an
+  // id belongs to a real person.
+  assertBookingForSelf(ctx.actor, input.occupantUserId);
+  const occupant = ctx.actor;
   // Somebody who gave up their own allocated desk for this slot may take a hot
   // one. Without it, releasing your desk in the morning and then changing your
   // mind leaves you with nowhere to sit and no way to book.
@@ -368,8 +371,8 @@ export async function createBooking(
     );
   }
 
-  const source: "self" | "admin" | "on_behalf" =
-    occupant.id === ctx.actor.id ? "self" : ctx.actor.isAdmin ? "admin" : "on_behalf";
+  // `admin` and `on_behalf` survive in the enum for historical rows only.
+  const source = "self" as const;
 
   try {
     return await ctx.db.transaction(async (tx) => {
@@ -434,17 +437,6 @@ export async function createBooking(
           to: ctx.actor.email,
           bookingId: booking!.id,
           rendered: renderSeatNotification("booking_confirmed", notifyContext(args)),
-        });
-      }
-
-      // The colleague gets their own message. Being given a desk without being
-      // told is how a booking becomes a no-show.
-      if (occupant.id !== ctx.actor.id && !input.suppressNotifications) {
-        await enqueueNotification(tx, {
-          kind: "booked_on_your_behalf",
-          to: occupant.email,
-          bookingId: booking!.id,
-          rendered: renderSeatNotification("booked_on_your_behalf", notifyContext(args)),
         });
       }
 

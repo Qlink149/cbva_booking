@@ -144,11 +144,10 @@ describe("reconfiguring the firm to hourly booking", () => {
 
     /* ---- and the same hour on the same desk is still refused ---- */
     await expect(
-      createBooking(ctx(f.manager), {
+      createBooking(ctx(f.colleague), {
         seatCode: f.seatA.code,
         bookingDate: MONDAY,
         slot: "E17",
-        occupantUserId: f.colleague.id,
       }),
     ).rejects.toMatchObject({ code: "SEAT_TAKEN" });
 
