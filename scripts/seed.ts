@@ -27,7 +27,7 @@ import { config } from "dotenv";
  */
 config({ path: process.env.ENV_FILE ?? ".env.local", quiet: true });
 
-import { notInArray, sql } from "drizzle-orm";
+import { inArray, notInArray, or, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { v5 as uuidv5 } from "uuid";
@@ -43,8 +43,10 @@ import { FIRST_NAMES, LAST_NAMES } from "../src/lib/seed-data/names";
 import {
   ADMIN_TEAMS,
   BAYS,
+  BLOCKED_SEAT_CODE,
   FIXED_SEAT_ALLOCATION,
   HEADCOUNT,
+  R009_ADDED_PEOPLE,
   MEETING_ROOMS,
   TEAMS,
   ZONES,
@@ -140,7 +142,18 @@ function buildUsers(rng: Rng): SeededUser[] {
   const usedEmails = new Set<string>();
   let n = 0;
 
-  for (const bracket of HEADCOUNT) {
+  // The R007 roster first, in the order it has always been generated, then
+  // the people R009 added. Names and emails are a function of the generation
+  // index, so appending keeps every existing person's address stable.
+  const passes: Array<Array<{ grade: schema.Grade; count: number; seatMode: "fixed" | "bookable" }>> = [
+    HEADCOUNT.map((b) => ({ ...b, count: b.count - (R009_ADDED_PEOPLE[b.grade] ?? 0) })),
+    HEADCOUNT.filter((b) => R009_ADDED_PEOPLE[b.grade]).map((b) => ({
+      ...b,
+      count: R009_ADDED_PEOPLE[b.grade] ?? 0,
+    })),
+  ];
+
+  for (const bracket of passes.flat()) {
     for (let i = 0; i < bracket.count; i++) {
       const first = FIRST_NAMES[(n * 7 + i * 13) % FIRST_NAMES.length]!;
       const last = LAST_NAMES[(n * 11 + i * 5) % LAST_NAMES.length]!;
@@ -280,6 +293,36 @@ async function main() {
   await db.delete(schema.roomBookings);
   await db.delete(schema.bookings);
 
+  /* ---- retire desks the drawing no longer has ----
+     Seats are upserted on seat_code, which is exactly right while the codes are
+     stable and exactly wrong when a revision renames them: R009 (ADR-049)
+     replaced `A1-01`…`PD-18` with the architect's desk numbers `1`…`158`, and
+     an upsert alone would have left both generations in the table — 299 desks
+     on a floor that has 158. So any seat whose code is not in the current bay
+     schedule is removed here, together with the release and series history
+     that pointed at it (both `ON DELETE restrict`; bookings are already gone
+     above). `users.fixed_seat_id` is `set null` and is re-pointed by the
+     allocation below. A real production database would want this to be a
+     migration with a mapping, not a delete; the seed is for demo data. */
+  const liveCodes = BAYS.flatMap(seatCodes);
+  const stale = await db
+    .select({ id: schema.seats.id, seatCode: schema.seats.seatCode })
+    .from(schema.seats)
+    .where(notInArray(schema.seats.seatCode, liveCodes));
+  if (stale.length > 0) {
+    const staleIds = stale.map((s) => s.id);
+    await db.delete(schema.seatReleases).where(inArray(schema.seatReleases.seatId, staleIds));
+    await db.delete(schema.bookingSeries).where(inArray(schema.bookingSeries.seatId, staleIds));
+    await db.delete(schema.seats).where(inArray(schema.seats.id, staleIds));
+    console.log(
+      `  retired ${stale.length} desk(s) no longer in the drawing's schedule ` +
+        `(${stale
+          .slice(0, 4)
+          .map((s) => s.seatCode)
+          .join(", ")}${stale.length > 4 ? " …" : ""})`,
+    );
+  }
+
   /* ---- settings (singleton) ---- */
   await db
     .insert(schema.settings)
@@ -360,6 +403,48 @@ async function main() {
 
   /* ---- users ---- */
   const users = buildUsers(rng);
+
+  /* ---- retire demo people the roster no longer generates ----
+     Users are upserted on email, so a person the generator stops producing is
+     left behind rather than removed, and the next seed reports more people
+     than the floor has. Only PASSWORD-LESS users are retired: a password is
+     set by `scripts/set-password.ts` by hand, which is how a support login
+     for the Clara team is created, and nothing that was created by hand is
+     the seed's to delete. Their release and series history goes with them;
+     bookings are already gone above. */
+  const rosterEmails = users.map((u) => u.email);
+  const orphans = await db
+    .select({ id: schema.users.id, email: schema.users.email })
+    .from(schema.users)
+    .where(
+      sql`${schema.users.email} not in (${sql.join(
+        rosterEmails.map((e) => sql`${e}`),
+        sql`, `,
+      )}) and ${schema.users.passwordHash} is null`,
+    );
+  if (orphans.length > 0) {
+    const ids = orphans.map((u) => u.id);
+    await db
+      .delete(schema.seatReleases)
+      .where(
+        or(
+          inArray(schema.seatReleases.ownerUserId, ids),
+          inArray(schema.seatReleases.releasedByUserId, ids),
+          inArray(schema.seatReleases.revokedByUserId, ids),
+        ),
+      );
+    await db
+      .delete(schema.bookingSeries)
+      .where(
+        or(
+          inArray(schema.bookingSeries.occupantUserId, ids),
+          inArray(schema.bookingSeries.createdByUserId, ids),
+        ),
+      );
+    await db.delete(schema.users).where(inArray(schema.users.id, ids));
+    console.log(`  retired ${orphans.length} demo user(s) the roster no longer generates`);
+  }
+
   await chunked(users, 100, async (batch) => {
     await db
       .insert(schema.users)
@@ -473,7 +558,7 @@ async function main() {
   await db
     .update(schema.seats)
     .set({ status: "blocked" })
-    .where(sql`${schema.seats.seatCode} = 'PD-18'`);
+    .where(sql`${schema.seats.seatCode} = ${BLOCKED_SEAT_CODE}`);
 
   /* ---- meeting rooms ----
      Phase 6 replaced six provisional rooms with the five the drawing actually
@@ -526,7 +611,7 @@ async function main() {
   const bookableSeats = seats.filter(
     (s) =>
       !FIXED_SEAT_ALLOCATION.some((a) => a.codes.includes(s.seatCode)) &&
-      s.seatCode !== "PD-18",
+      s.seatCode !== BLOCKED_SEAT_CODE,
   );
   const bayGroups = new Map<string, SeededSeat[]>();
   for (const s of bookableSeats) {

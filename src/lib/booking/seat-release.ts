@@ -1,7 +1,7 @@
 /**
  * Releasing an allocated desk back to the pool.
  *
- * WHY THIS EXISTS. 47 of the 141 desks are allocated to Manager grade and
+ * WHY THIS EXISTS. 47 of the 158 desks are allocated to Manager grade and
  * above and are never bookable, so they contribute nothing to the occupancy
  * data — they are a constant, not a measurement. A partner who frees their desk
  * on a WFH day does two things at once: increases usable supply for the day,
@@ -65,8 +65,8 @@ export interface ReleaseSeatInput {
  *
  * `/api/floor` calls this once per render and hands the result to
  * `seatVisualStatus` as a boolean. It is a Map rather than a per-seat lookup
- * because the floor route already loads all 141 seats in one query and must not
- * grow 141 more.
+ * because the floor route already loads all 158 seats in one query and must not
+ * grow 158 more.
  */
 export async function liveReleasesFor(
   db: DbLike,

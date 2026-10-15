@@ -10,9 +10,9 @@ test("home page renders the shell and live seeded numbers", async ({ page }) => 
   await expect(page.getByRole("link", { name: /CBV & ASSOCIATES/i })).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByText("Seats Occupied Today")).toBeVisible();
-  // 141 desks come from the seed, not from a hard-coded number.
+  // 158 desks come from the seed, not from a hard-coded number.
   await expect(page.getByText("Total Desks")).toBeVisible();
-  await expect(page.locator("dd", { hasText: /^141$/ }).first()).toBeVisible();
+  await expect(page.locator("dd", { hasText: /^158$/ }).first()).toBeVisible();
 });
 
 test("primary navigation reaches every destination", async ({ page }) => {

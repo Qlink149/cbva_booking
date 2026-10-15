@@ -24,6 +24,7 @@ import {
   wallsSchema,
   zonesSchema,
 } from "../src/lib/floorplan-schema";
+import { BAYS, TOTAL_SEATS, seatCodes } from "../src/lib/seed-data/inventory";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DATA = path.join(ROOT, "src", "data", "floorplan");
@@ -76,9 +77,14 @@ function extract() {
 }
 
 /**
- * ASSUMPTIONS A24, and the reason this step exists at all.
+ * ASSUMPTIONS A24 (closed with R009), and the reason this step exists at all.
  *
- * The extractor cannot place eleven of the 141 desks from the drawing -- those
+ * Under R009 every desk is numbered on the plan and snaps onto its own chair
+ * block, so nothing is interpolated and this step is a no-op that still runs:
+ * it is the guard that says so, and a future revision that leaves a desk
+ * without a chair goes through the same de-collide it always did.
+ *
+ * Under R007 the extractor could not place eleven of the 141 desks -- those
  * bays yield fewer chair blocks than the schedule calls for -- so it
  * interpolates them by dividing up the bay. That spacing is not the drawing's,
  * and it put fifteen pairs of desks closer together than a desk is wide, the
@@ -176,8 +182,23 @@ function validate() {
   const report = detectionReportSchema.parse(read("detection-report.json"));
 
   const problems: string[] = [];
-  if (seats.seats.length !== 141) {
-    problems.push(`expected 141 seat anchors, got ${seats.seats.length}`);
+  if (seats.seats.length !== TOTAL_SEATS) {
+    problems.push(`expected ${TOTAL_SEATS} seat anchors, got ${seats.seats.length}`);
+  }
+  // The anchors and the seed inventory must name exactly the same desks, in
+  // the same bays: R009's desk numbers are the join between the two, and a
+  // bay boundary that moved in one and not the other is a desk that books
+  // against the wrong wing.
+  const expected = new Map(BAYS.flatMap((b) => seatCodes(b).map((c) => [c, b] as const)));
+  for (const s of seats.seats) {
+    const bay = expected.get(s.seatCode);
+    if (!bay) problems.push(`seats.json has desk ${s.seatCode}, which inventory.ts does not`);
+    else if (bay.bay !== s.bay || bay.zone !== s.zone) {
+      problems.push(
+        `desk ${s.seatCode} is bay ${s.bay} / zone ${s.zone} in seats.json but ` +
+          `bay ${bay.bay} / zone ${bay.zone} in inventory.ts`,
+      );
+    }
   }
   if (walls.polygons.length > 600) {
     problems.push(`expected under 600 wall polygons, got ${walls.polygons.length}`);
@@ -260,7 +281,7 @@ function validate() {
       "# Generated — do not edit by hand",
       "",
       "`npm run build:floorplan` writes every file in this directory from",
-      "`tools/cad/09 -R8 - NB -FURNITURE LAYOUT - 12-06-2025.pdf`.",
+      `\`tools/cad/${meta.source}\`.`,
       "",
       `Source SHA-256: \`${meta.sourceSha256}\``,
       `Generator version: ${meta.generatorVersion}`,

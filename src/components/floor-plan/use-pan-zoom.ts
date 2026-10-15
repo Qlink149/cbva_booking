@@ -34,7 +34,7 @@ const DRAG_SLOP_PX = 8;
  * Pan and zoom over the plan.
  *
  * The whole layer moves as one CSS transform. Nothing is re-laid-out on pan or
- * zoom and no per-seat work happens, which is what keeps 141 interactive nodes
+ * zoom and no per-seat work happens, which is what keeps 158 interactive nodes
  * at 60fps on a mid-range laptop. `fitTo` returns the transform that frames a
  * plan-space rectangle; the caller animates towards it.
  */
@@ -64,7 +64,7 @@ export function usePanZoom(initial?: Rect) {
    * Pointer capture is deliberately not requested for this pointer until it
    * crosses DRAG_SLOP_PX (see onPointerMove) — a seat is a real <button> and
    * a tap on it has to reach that button's own native click undisturbed. On a
-   * phone at fit-to-floor the 141 seat markers nearly tile the surface, so
+   * phone at fit-to-floor the 158 seat markers nearly tile the surface, so
    * without this a touch that starts on a seat could never begin a pan at
    * all: the old behaviour bailed out of pan-tracking entirely for any
    * pointerdown on `[data-seat]`.

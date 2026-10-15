@@ -36,10 +36,10 @@ export function StyleguideInteractive() {
               <TabsTrigger value="day">Full Day</TabsTrigger>
             </TabsList>
             <TabsContent value="am" className="pt-4 text-sm text-ink-muted">
-              09:00–13:30. 41 of 93 bookable desks taken.
+              09:00–13:30. 41 of 110 bookable desks taken.
             </TabsContent>
             <TabsContent value="pm" className="pt-4 text-sm text-ink-muted">
-              13:30–19:00. 38 of 93 bookable desks taken.
+              13:30–19:00. 38 of 110 bookable desks taken.
             </TabsContent>
             <TabsContent value="day" className="pt-4 text-sm text-ink-muted">
               Both slots on the same desk.
@@ -66,7 +66,7 @@ export function StyleguideInteractive() {
               description="Desk C3-04, Zone C, Tuesday morning."
             >
               <div className="flex items-center gap-4">
-                <SeatSwatch status="your_booking" code="C3-04" size="lg" />
+                <SeatSwatch status="your_booking" code="37" size="lg" />
                 <p className="min-w-0 text-sm text-ink-muted">
                   Check in by 11:00 or the desk is automatically released back
                   into the pool.

@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { floorplanMeta, floorplanSeatAnchors } from "@/lib/floorplan";
+import { TOTAL_SEATS } from "@/lib/seed-data/inventory";
 
 /**
  * Can a seat chip be seen against the architect's drawing?
@@ -20,9 +21,9 @@ import { floorplanMeta, floorplanSeatAnchors } from "@/lib/floorplan";
  * further into the next chip.
  *
  * So it is measured here instead: directly against the baked texture, at the
- * plan coordinate of every one of the 141 seats, with no neighbours in the way
+ * plan coordinate of every one of the 158 seats, with no neighbours in the way
  * and no browser involved. This is both more precise and cheaper -- and it
- * covers all 141 rather than whichever one happened to be on screen.
+ * covers all 158 rather than whichever one happened to be on screen.
  *
  * WHAT IS ASSERTED. WCAG 1.4.11 asks for 3:1 on "the visual information
  * required to identify user interface components". For a seat that is the 1px
@@ -175,7 +176,7 @@ describe("seat chips against the baked drawing", () => {
   it("reads the texture the app actually ships", () => {
     expect(width).toBe(2048);
     expect(floorplanMeta.texture["2048"]).toBe("/floorplan/plan-texture-2048.webp");
-    expect(floorplanSeatAnchors.seats).toHaveLength(141);
+    expect(floorplanSeatAnchors.seats).toHaveLength(TOTAL_SEATS);
     expect(STATUS_PAINT).toHaveLength(7);
   });
 

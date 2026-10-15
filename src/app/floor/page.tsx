@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import { FloorClient } from "@/app/floor/floor-client";
 import { floorplanDetectionReport, floorplanMeta } from "@/lib/floorplan";
+import { TOTAL_SEATS } from "@/lib/seed-data/inventory";
 
 export const metadata: Metadata = { title: "Floor Map" };
 
@@ -39,8 +40,8 @@ export default function Page() {
 
       <p className="text-xs text-ink-subtle">
         Geometry extracted from {floorplanMeta.source} ·{" "}
-        {floorplanDetectionReport.bays.reduce((n, b) => n + b.detected, 0)} of 141
-        desks located automatically
+        {floorplanDetectionReport.bays.reduce((n, b) => n + b.detected, 0)} of {TOTAL_SEATS}
+        desks located from the architect&rsquo;s own desk numbers
         {interpolated > 0 ? `, ${interpolated} positioned by interpolation` : null} ·
         plan scale {floorplanMeta.mmPerUnit ? `${floorplanMeta.mmPerUnit} mm per unit` : "unresolved"}
       </p>

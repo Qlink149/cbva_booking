@@ -428,7 +428,7 @@ export const settings = pgTable("settings", {
 /**
  * A fixed desk, handed back to the pool for one date and one slot.
  *
- * 47 of the 141 desks are allocated and therefore never appear in the occupancy
+ * 47 of the 158 desks are allocated and therefore never appear in the occupancy
  * data — they are a constant, not a measurement. This table is the only route
  * by which they ever get measured.
  *

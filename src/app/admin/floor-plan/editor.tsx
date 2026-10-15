@@ -43,7 +43,9 @@ async function getJson<T>(url: string): Promise<T> {
 /**
  * The seat position editor.
  *
- * This exists because automatic detection got 130 of 141 desks and will never
+ * This exists because automatic detection is an inference (under R007 it got
+ * 130 of 141 desks; under R009 every desk is numbered and snaps onto its own
+ * chair block) and will never
  * get all of them, and because furniture moves. Fifteen minutes of dragging
  * turns a 92% floor into a correct one, and CBVA needs the same tool the first
  * time a bay is reconfigured.

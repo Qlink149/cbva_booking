@@ -54,7 +54,7 @@ const STATUS_TONE: Record<string, "neutral" | "navy" | "caution" | "danger"> = {
 /**
  * Desk inventory.
  *
- * This screen is how ASSUMPTIONS A2 gets answered — which of the 141 desks are
+ * This screen is how ASSUMPTIONS A2 gets answered — which of the 158 desks are
  * allocated, and to whom — without anybody touching the seed. It is also where
  * A13's single blocked desk lives, and where a desk that really breaks gets
  * recorded so the floor plan stops lying about it.
@@ -176,7 +176,7 @@ export function SeatsClient() {
               className="w-36"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="C5-03"
+              placeholder="37"
               aria-label="Search desks by code"
             />
           </label>

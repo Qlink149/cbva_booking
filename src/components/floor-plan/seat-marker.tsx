@@ -164,7 +164,7 @@ function SeatMarkerImpl({
           // floor would read upside down.
           style={{ transform: `rotate(${-seat.rotationDeg}deg)` }}
         >
-          {seat.seatCode.split("-")[1]}
+          {seat.seatCode}
         </span>
       ) : token.glyph ? (
         <span aria-hidden="true" style={{ transform: `rotate(${-seat.rotationDeg}deg)` }}>

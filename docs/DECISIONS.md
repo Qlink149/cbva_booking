@@ -1483,3 +1483,62 @@ is also visible-only: what it conveys is available to a screen reader through th
 seats themselves and the list view, which is the same position ADR-032 takes for
 the 3D view, but it does mean the density READING is a sighted convenience
 rather than a second accessible path.
+
+## ADR-049 — R009 is fitted onto the R007 plan frame, and the architect's desk numbers drive seat placement
+
+**Context.** CBVA's architect re-issued the furniture layout on 17-06-2025
+(R009) as two A3 layout PDFs. Measured against R007 with the repo's own parser:
+the structural shell is the same drawing (863 structural vertices fit to a
+median 0.07 pt, worst 0.22 pt), but the sheet is A3 where R007 was A2 model
+space (scale 1/1.4649, offset), it is plotted colour-by-layer with every line
+weight zero, the four big zone letters, the bay tags, the room tags and the
+on-plan PAX annotations are gone, and in their place every desk carries a
+number 1–158 and every bay a circled letter A–T. Zone B gains 17 workstations;
+the other 141 desks did not move. The later of the two exports
+(`Untitled.pdf`, now `tools/cad/CBVA - FURNITURE LAYOUT - R009 - 17-06-2025.pdf`)
+is the one with the numbers and is the source.
+
+**Decision 1 — keep the R007 frame.** Every plan coordinate the product has
+ever committed — the viewBox, `seats.json`, zone hulls, `coreCentre`,
+`mmPerUnit`, the 3D world transform, the texture EXCLUDE boxes — is in R007's
+sheet space. Rather than re-base all of it, `cadparse.py` reads the MediaBox,
+looks up a per-sheet similarity fit (`SHEET_FITS`) and applies it inside
+`to_plan`, the one place a page coordinate becomes a plan coordinate. Nothing
+downstream can tell the sheet changed: the mask coverage (0.5775), the core
+centre, the scale (70.5556 mm/unit) and the zone outlines come out identical.
+`tools/cad/calibrate_sheet.py` re-derives the fit from the five structural
+layers and fails if the held constant drifts by more than 0.05 pt.
+
+**Decision 2 — the desk numbers are the seats.** Under R007 a seat was an
+inference: a chair block, assigned to the nearest bay tag under a capacity read
+off a PAX label, interpolated where the count came up short. Under R009 a seat
+is a statement: the number IS the architect's desk identity, its label IS the
+position, and the chair block beside it supplies the facing. So `desk_labels`
++ `bay_letters` + `check_numbering` (ranges are contiguous in letter order,
+verified by nearest-letter centroid) + `snap_to_chairs` replace `bay_anchors`
++ `assign` + `interpolate`. 158 of 158 snap; nothing is interpolated; A24
+closes. The seat code is the number itself (`"37"`), the bay is the letter, and
+the seed's `BAYS` carries `firstDesk` so the two schedules are asserted equal
+by `scripts/build-floorplan.ts`.
+
+**Decision 3 — what the sheet dropped is carried forward, and said to be.** The
+zone wedges aim at R007's letter positions (`ZONE_ANCHORS_R007`) because the
+wings must keep their outlines; the room schedule is `ROOMS_R007` and the
+report records `roomsFromSheet: false` (A33). The title block's own bay
+schedule, still under the R007 names, is parsed (`sheet_schedule`) and asserted
+to sum to the plan's 158 — the sheet agrees with itself by a different
+grouping, and A32 records that the letters won.
+
+**Decision 4 — the texture is the same picture.** `PLOT_WEIGHTS` restores the
+line weights R007 plotted per layer; `MUTED` maps each R009 layer colour onto
+the target its R007 colour had; the partition colour key is per sheet
+(`PARTITION_STROKES`). A reader of `/floor` sees the same building drawn the
+same way, with six credenza bitmaps where R007 placed eleven.
+
+**Cost.** R007's PDF stays in `tools/cad/` as the frame reference for the
+calibration tool. The bay vocabulary changed under every existing seat code,
+so the seed retires desks and roster entries the drawing no longer generates
+(a real production database would need a mapping migration, not a delete).
+The 17 added people are generated after the original 141 so no existing
+address changes. Bay letter C sits in zone B, which is awkward to read and
+correct to keep.

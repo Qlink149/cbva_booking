@@ -196,7 +196,7 @@ async function main() {
   console.log("\nCheck-in page (via a QR link)");
   const seatsRes = await page.request.get("/api/floor?date=" + (await currentDate(page)) + "&slot=AM");
   const seatsBody = (await seatsRes.json().catch(() => null)) as { seats?: Array<{ seatCode: string }> } | null;
-  const anySeat = seatsBody?.seats?.[0]?.seatCode ?? "A1-01";
+  const anySeat = seatsBody?.seats?.[0]?.seatCode ?? "1";
   await gotoSettled(page, `/checkin/${anySeat}`);
   await shot(page, "checkin-page");
 

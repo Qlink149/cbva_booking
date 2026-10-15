@@ -110,7 +110,7 @@ export interface CreateBookingVars {
  * Book a desk, optimistically.
  *
  * The seat is painted as taken the instant the button is pressed, because the
- * plan is a map of 141 squares and the one that just changed has to be obvious.
+ * plan is a map of 158 squares and the one that just changed has to be obvious.
  * On failure the previous snapshot is put back — which matters most in exactly
  * the case the optimism is wrong: somebody else got the desk first, and the map
  * must not be left showing it as yours.

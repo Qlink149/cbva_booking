@@ -11,7 +11,7 @@ import { DIMENSIONS } from "@/components/floor-plan/three/coords";
  * modelled office chair and six boxes are indistinguishable, and the boxes cost
  * nothing to load, nothing to license and nothing to keep in the repo.
  *
- * Each is merged into ONE BufferGeometry so drei's <Instances> can draw all 141
+ * Each is merged into ONE BufferGeometry so drei's <Instances> can draw all 158
  * in a single call. Both are built at the origin with their base on y=0 and
  * their occupant facing -Z, so a seat's `rotationDeg` is the only thing that
  * has to be right per instance.

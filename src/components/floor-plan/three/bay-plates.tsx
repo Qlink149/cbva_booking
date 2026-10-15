@@ -4,7 +4,7 @@
  * WHY. At whole-floor framing a desk is a few pixels across and its status
  * glyph is sub-pixel, so the seven-status vocabulary is not merely hard to read
  * there, it is unreadable in principle. Phase 4 tried to fix that by enlarging
- * the glyph plate and smeared the atlas across all 141 desks, because the cell
+ * the glyph plate and smeared the atlas across all 158 desks, because the cell
  * holds one CENTRED glyph and a bigger plate stretches it. The answer is not a
  * bigger mark, it is a different question: how full is each bay.
  *

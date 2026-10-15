@@ -169,7 +169,7 @@ describe("generated floor plan geometry", () => {
 });
 
 describe("detection report", () => {
-  it("reconciles to 141 seats", () => {
+  it("reconciles to the bay schedule", () => {
     const placed = floorplanDetectionReport.bays.reduce((n, b) => n + b.placed, 0);
     expect(placed).toBe(TOTAL_SEATS);
   });
@@ -185,32 +185,49 @@ describe("detection report", () => {
   });
 
   it("carries the drawing's own headline total and its exclusion note", () => {
-    // The title block is a third source for 141, independent of both the
-    // per-bay pax annotations and the furniture schedule. The note is what
-    // explains why zone A's conference rooms hold chairs but no seats.
+    // The title block is a second source for the total, independent of the
+    // numbered desks on the plan. The note is what explains why zone A's
+    // conference rooms hold chairs but no seats.
     expect(floorplanDetectionReport.sheetTotalWorkingPeople).toBe(TOTAL_SEATS);
     expect(floorplanDetectionReport.sheetExclusionNote).toBe(
       "NOTE: CONFERENCE AREA AND CAFETERIA NOT INCLUDED.",
     );
   });
 
-  it("is explicit about which bays the drawing does not confirm", () => {
-    // A1 and A2 carry no PAX annotation, so those 8 seats rest on our
-    // assumption. The report must keep saying so.
-    expect(floorplanDetectionReport.baysWithoutDrawingPax).toEqual(["A1", "A2"]);
-    expect(floorplanDetectionReport.seatsConfirmedByDrawingPax).toBe(133);
+  it("has every bay confirmed by the drawing, because every desk is numbered on it", () => {
+    // R009 (ADR-049). There is no PAX pairing left to be unsure about: the
+    // count of a bay is the count of numbered desks beside its letter.
+    expect(floorplanDetectionReport.baysWithoutDrawingPax).toEqual([]);
+    expect(floorplanDetectionReport.seatsConfirmedByDrawingPax).toBe(TOTAL_SEATS);
+    expect(floorplanDetectionReport.workstationRunPax).toBeNull();
   });
 
-  it("reports zone B's unscheduled chairs rather than hiding them", () => {
-    expect(floorplanDetectionReport.zoneBExpected).toBe(0);
+  it("reads the title block's own schedule, which reaches the same total under the old bay names", () => {
+    // The sheet still lists A1, D1-D8, PASSAGE, C1-C7, B1, B2 and a grade
+    // headcount; both sum to what the plan's numbers do. ASSUMPTIONS A32.
+    const bays = floorplanDetectionReport.sheetSchedule ?? [];
+    const grades = floorplanDetectionReport.sheetHeadcountByGrade ?? [];
+    expect(bays.length).toBeGreaterThan(10);
+    expect(bays.reduce((n, r) => n + (r.pax ?? 0), 0)).toBe(TOTAL_SEATS);
+    expect(grades.reduce((n, r) => n + (r.pax ?? 0), 0)).toBe(TOTAL_SEATS);
+    expect(bays.map((r) => r.label)).toContain("B1");
+    expect(grades.find((r) => r.label === "B.")?.pax).toBe(17);
+  });
+
+  it("reports zone B's seats and its remaining chairs", () => {
+    // 17 numbered workstations (bay C) plus the modular lounge seating R007
+    // already had, which no desk number sits on.
+    expect(floorplanDetectionReport.zoneBExpected).toBe(17);
     expect(floorplanDetectionReport.zoneBChairsDetected).toBeGreaterThan(0);
   });
 });
 
 describe("editor helpers", () => {
   it("finds a seat's anchor by code", () => {
-    expect(seatAnchor("C3-01")?.bay).toBe("C3");
-    expect(seatAnchor("NOPE-99")).toBeUndefined();
+    expect(seatAnchor("36")?.bay).toBe("F");
+    expect(seatAnchor("36")?.zone).toBe("C");
+    expect(seatAnchor("C3-01")).toBeUndefined();
+    expect(seatAnchor("159")).toBeUndefined();
   });
 
   it("snaps to a detected module when one is close", () => {
@@ -285,30 +302,39 @@ describe("no two desks occupy the same space (ASSUMPTIONS A24)", () => {
     ).toEqual([]);
   });
 
-  it("still has all 141 desks after the re-placement", () => {
-    expect(floorplanSeatAnchors.seats).toHaveLength(141);
-    expect(new Set(floorplanSeatAnchors.seats.map((s) => s.seatCode)).size).toBe(141);
+  it("still has every desk after the de-collide step", () => {
+    expect(floorplanSeatAnchors.seats).toHaveLength(TOTAL_SEATS);
+    expect(new Set(floorplanSeatAnchors.seats.map((s) => s.seatCode)).size).toBe(TOTAL_SEATS);
   });
 
   /**
-   * The eleven stay flagged `interpolated`, deliberately.
-   *
-   * Re-placing them at the drawing's own pitch stops them overlapping; it does
-   * not make them correct. The drawing genuinely does not say where these
-   * chairs are, so calling them `manual` would claim a confidence nobody has
-   * and would quietly close an open question. A24 stays open.
+   * A24 closed with R009. Under R007 eleven desks could not be found in the
+   * drawing and were interpolated along their bay's axis. R009 numbers every
+   * desk on the plan and every number snaps onto its own chair block, so
+   * nothing is inferred any more. If a revision ever leaves a desk without a
+   * chair within reach, the extractor marks it `interpolated` again and this
+   * is where it is noticed.
    */
-  it("keeps the re-placed desks marked as inferred, not as human corrections", () => {
+  it("places every desk from a chair block, with nothing interpolated", () => {
     const interpolated = floorplanSeatAnchors.seats
       .filter((s) => s.source === "interpolated")
-      .map((s) => s.seatCode)
-      .sort();
-    expect(interpolated).toEqual(
-      [
-        "C1-06", "C3-08", "C3-09", "C6-08", "C6-09", "C7-04",
-        "D1-08", "D1-09", "D7-04", "D8-04", "PA-16",
-      ].sort(),
-    );
+      .map((s) => s.seatCode);
+    expect(interpolated).toEqual([]);
+    expect(floorplanDetectionReport.bays.reduce((n, b) => n + b.interpolated, 0)).toBe(0);
+  });
+
+  it("uses the architect's desk numbers as seat codes, contiguous per bay", () => {
+    // ADR-049: "37" is what is printed beside the desk, so "37" is the code.
+    for (const bay of BAYS) {
+      const codes = floorplanSeatAnchors.seats
+        .filter((s) => s.bay === bay.bay)
+        .map((s) => Number(s.seatCode))
+        .sort((a, b) => a - b);
+      expect(codes[0]).toBe(bay.firstDesk);
+      expect(codes.at(-1)).toBe(bay.firstDesk + bay.count - 1);
+      expect(codes.every((c, i) => i === 0 || c === codes[i - 1]! + 1)).toBe(true);
+    }
+    expect(floorplanSeatAnchors.seats.every((s) => /^\d{1,3}$/.test(s.seatCode))).toBe(true);
   });
 });
 
@@ -332,7 +358,7 @@ describe("static furniture massing", () => {
 
   it("puts furniture in zones A and B, which is the whole point", () => {
     // The two west wings, in plan coordinates. Zone A is the boardroom and the
-    // meeting rooms; zone B is the flexible room. Both are seatless.
+    // meeting rooms; zone B is the lounge seating beside its 17 workstations.
     const west = items.filter((f) => f.x < 620);
     expect(west.length).toBeGreaterThan(100);
   });
@@ -409,7 +435,8 @@ describe("room labels", () => {
   });
 
   it("labels every room, and puts them inside the plan", () => {
-    expect(PLAN_LABELS.length).toBeGreaterThanOrEqual(8);
+    // The seven zone-A rooms (A3-A9). No whole-wing labels any more.
+    expect(PLAN_LABELS.length).toBe(7);
     for (const label of PLAN_LABELS) {
       expect(label.name.length).toBeGreaterThan(0);
       expect(label.planX).toBeGreaterThanOrEqual(PLAN_BOUNDS.x);
@@ -417,45 +444,40 @@ describe("room labels", () => {
       expect(label.planY).toBeGreaterThanOrEqual(PLAN_BOUNDS.y);
       expect(label.planY).toBeLessThanOrEqual(PLAN_BOUNDS.y + PLAN_BOUNDS.height);
     }
-    // Zone B has no bay tag of its own and must still be named — it is the
-    // wing whose emptiness the labels exist to explain.
-    expect(PLAN_LABELS.some((l) => l.code === "B")).toBe(true);
+    // Zone B is no longer labelled as a wing: R009 put 17 bookable desks in
+    // it, and a "Flexible room" label would sit on top of them.
+    expect(PLAN_LABELS.some((l) => l.code === "B")).toBe(false);
   });
 
-  it("says why the wings are empty, in a sentence a screen reader can read", () => {
+  it("is honest that R009 carries no room tags and the schedule is carried forward (A33)", () => {
+    expect(floorplanDetectionReport.roomsFromSheet).toBe(false);
+  });
+
+  it("says why zone A is empty, in a sentence a screen reader can read", () => {
     const summary = nonBookableSummary();
     expect(summary).toContain("Boardroom (25 seats)");
-    expect(summary).toContain("A1 and A2");
+    expect(summary).toContain("bays A and B");
     expect(summary.length).toBeGreaterThan(80);
   });
 });
 
 /**
- * The drawing confirms all 141, not 133 (Phase 6).
- *
- * `baysWithoutDrawingPax` has read ["A1","A2"] since Phase 2, and the handoffs
- * repeated that only 133 seats were confirmed by an annotation. There is an
- * `8 PAX` label 19.1 plan units from the A2 tag — exactly A1 + A2 in the bay
- * schedule. It was invisible because seat detection skips every zone-A tag, a
- * guard that is right for meeting rooms and threw out the one zone-A
- * annotation that is a desk count.
+ * The partners' cabins under R009: bays A and B, desks 1-8, where R007 had
+ * A1/A2 with an `8 PAX` annotation beside the A2 tag. The annotation is gone
+ * and the numbers replace it; the pair still totals 8.
  */
-describe("the A1/A2 workstation run is annotated after all", () => {
-  it("reads the 8 PAX beside the A2 tag", () => {
-    expect(floorplanDetectionReport.workstationRunPax).toBe(8);
+describe("the cabin desks in zone A", () => {
+  it("are desks 1-8 in bays A and B, and nothing else is in zone A", () => {
+    const zoneA = floorplanSeatAnchors.seats.filter((s) => s.zone === "A");
+    expect(zoneA.map((s) => Number(s.seatCode)).sort((a, b) => a - b)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
+    expect(new Set(zoneA.map((s) => s.bay))).toEqual(new Set(["A", "B"]));
   });
 
-  it("matches the bay schedule for the pair", () => {
-    const a1 = BAYS.find((b) => b.bay === "A1");
-    const a2 = BAYS.find((b) => b.bay === "A2");
-    expect((a1?.count ?? 0) + (a2?.count ?? 0)).toBe(
-      floorplanDetectionReport.workstationRunPax,
-    );
-  });
-
-  it("does not change what the seat detection derived", () => {
-    // Reported, not applied. The pair still totals 8 and the floor still 141.
-    expect(floorplanSeatAnchors.seats.filter((s) => s.bay === "A1" || s.bay === "A2")).toHaveLength(8);
-    expect(floorplanSeatAnchors.seats).toHaveLength(141);
+  it("match the bay schedule for the pair", () => {
+    const a = BAYS.find((b) => b.bay === "A");
+    const b = BAYS.find((b) => b.bay === "B");
+    expect((a?.count ?? 0) + (b?.count ?? 0)).toBe(8);
   });
 });

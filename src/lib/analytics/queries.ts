@@ -541,7 +541,7 @@ export async function filterOptions(db: Db): Promise<{
  * This has to average PER DAY and cannot reuse occupancyBy("weekday"), which
  * would be quietly and badly wrong. `count(distinct seat_id)` grouped over an
  * eight-week period saturates: nearly every desk gets used on some Monday
- * eventually, so every weekday returns ~93 and the chart renders flat — hiding
+ * eventually, so every weekday returns ~110 and the chart renders flat — hiding
  * the exact finding it exists to show.
  *
  * So: aggregate per (date, slot) first, then average those daily figures across

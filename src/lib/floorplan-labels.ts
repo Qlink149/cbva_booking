@@ -1,15 +1,15 @@
 /**
  * Room labels for the floor plan.
  *
- * WHY. Zones A and B contain no bookable desks at all — a 25-person boardroom,
- * four meeting rooms, two lounges, storage, and a flexible room with eight
- * foldable tables on castors. Without a label those wings read as a fault in
- * the drawing. One word each turns "the model looks empty and broken" into
- * "that wing is meeting rooms", which is a large change in how the plan reads
- * for a very small amount of geometry.
+ * WHY. Zone A holds eight cabin desks and otherwise no bookable desks at all —
+ * a 25-person boardroom, four meeting rooms, two lounges and storage. Without
+ * a label that wing reads as a fault in the drawing. One word each turns "the
+ * model looks empty and broken" into "that wing is meeting rooms", which is a
+ * large change in how the plan reads for a very small amount of geometry.
  *
- * The POSITIONS and the CAPACITIES come from the drawing (`rooms.json`, the
- * architect's own bay tags and PAX annotations). Only the display NAMES are
+ * The POSITIONS and the CAPACITIES come from the drawing (`rooms.json`, R007's
+ * room tags and PAX annotations, carried forward under R009 — ASSUMPTIONS
+ * A33). Only the display NAMES are
  * ours, and they are not defined here twice: the five real meeting rooms take
  * their name from `MEETING_ROOMS`, joined on the bay code, which is the whole
  * reason `meeting_rooms.bay_code` exists. A room renamed on the /rooms screen
@@ -38,15 +38,14 @@ const NON_ROOM_BAYS: Record<string, string> = {
 };
 
 /**
- * Zone B carries no bay tag, no PAX annotation and no workstation hatch of
- * either colour — it is the flexible room, and the drawing's own note
- * ("Foldable table on castors: 2'-9\" x 4'-0\" = 5 nos, 2'-6\" x 5'-0\" = 3 nos")
- * sits inside this wing. Labelled from the zone polygon's own anchor, because
- * there is no tag to read. See ASSUMPTIONS A16.
+ * Whole-wing labels, from the zone polygon's own anchor. Under R007 zone B was
+ * labelled "Flexible room" here because it held no desks and the drawing's
+ * own castors note sat inside it. R009 places 17 numbered workstations in
+ * that wing (bay C, desks 9–25), so the label would now sit on top of bookable
+ * desks and say something the drawing no longer says. Empty, deliberately;
+ * the hook stays so a wing label can come back from the drawing, not from us.
  */
-const ZONE_LABELS: Record<string, string> = {
-  B: "Flexible room",
-};
+const ZONE_LABELS: Record<string, string> = {};
 
 const roomNameByBay = new Map<string, string>(
   MEETING_ROOMS.map((r) => [r.bayCode, r.name]),
@@ -91,8 +90,8 @@ export function nonBookableSummary(): string {
     .map((l) => `${l.name} (${l.pax} seats)`);
   const other = PLAN_LABELS.filter((l) => l.pax === null).map((l) => l.name);
   return (
-    `Zones A and B have no bookable desks apart from bays A1 and A2. ` +
-    `They hold ${rooms.join(", ")}` +
+    `Zone A has no bookable desks apart from the eight cabin desks in bays A and B. ` +
+    `It holds ${rooms.join(", ")}` +
     (other.length ? `, and ${other.join(", ").toLowerCase()}` : "") +
     `.`
   );

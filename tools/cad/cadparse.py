@@ -8,16 +8,31 @@ positions, and the block transforms -- and all three are recoverable from the
 page content streams with nothing but zlib. Keeping it stdlib means
 `npm run build:floorplan` works on a clean checkout with no pip step.
 
-The drawing is 09 -R8 - NB -FURNITURE LAYOUT - 12-06-2025.pdf, plotted from
-AutoCAD 2021, MediaBox [0 0 1684 1191], /Contents an array of 14 streams that
-MUST be concatenated in declaration order because the graphics state carries
-across them.
+The drawing is CBVA - FURNITURE LAYOUT - R009 - 17-06-2025.pdf, plotted from
+AutoCAD 2021 as an A3 layout, MediaBox [0 0 1191 842]. Its predecessor,
+09 -R8 - NB -FURNITURE LAYOUT - 12-06-2025.pdf (R007), was an A2 model-space
+plot, MediaBox [0 0 1684 1191], and every plan coordinate this project has
+ever committed -- the viewBox, seats.json, zones, the 3D world transform --
+is in THAT sheet's frame. The /Contents array of each MUST be concatenated in
+declaration order because the graphics state carries across the streams.
 
 Coordinate spaces, in order:
   content  raw operand numbers, ~0..53000, meaningless until the CTM is applied
-  user     PDF user space, 1684 x 1191, origin bottom-left, y UP
+  user     PDF user space, the sheet's own MediaBox, origin bottom-left, y UP
   plan     what everything downstream uses: y DOWN (so it matches SVG and the
-           viewBox the Phase 1 assets already carry), cropped to PLAN_BOX
+           viewBox the Phase 1 assets already carry), cropped to PLAN_BOX, and
+           ALWAYS in the R007 A2 frame -- see SHEET_FITS
+
+THE PLAN FRAME IS R007's, AND STAYS R007's (ADR-049). When the architect
+re-issued the drawing on an A3 layout the building itself did not move, but
+every coordinate on the page did: the plot is 1/1.4649 the size and offset.
+Rather than re-base the whole product on the new sheet (new viewBox, new
+mmPerUnit, every committed anchor and zone hull and 3D constant re-derived)
+the new sheet is fitted onto the old frame with one similarity transform,
+measured from the structural layers that are identical in both revisions,
+and applied inside `to_plan`. Nothing downstream can tell the sheet changed:
+a wall in R009 lands on the same plan coordinate it had in R007 to within
+0.2 pt. `tools/cad/calibrate_sheet.py` re-derives the fit and audits it.
 """
 import base64
 import binascii
@@ -26,7 +41,60 @@ import re
 import struct
 import zlib
 
+# The sheet currently being read. Set by `configure_sheet()` from the PDF's
+# own MediaBox at the top of `read()`, so the y-flip in `to_plan` is always
+# the sheet's own height and never a constant left over from another sheet.
 MEDIA_W, MEDIA_H = 1684.0, 1191.0
+
+# The frame every committed plan coordinate lives in: R007's A2 sheet.
+PLAN_FRAME = (1684.0, 1191.0)
+
+# Similarity fit (s, tx, ty) from a sheet's own y-down page space onto the
+# R007 frame, keyed by MediaBox. plan = (s*x + tx, s*(MEDIA_H - y) + ty).
+#
+# Measured by `calibrate_sheet.py`: every vertex on K-COLS, C- COLOUMN,
+# W-WALL, K-WALL and I-WALL of the new sheet matched to its nearest R007
+# vertex, least-squares similarity, four ICP passes. R009 vs R007:
+# 863 matched points, median residual 0.04 pt, worst 0.22 pt. The structural
+# shell is byte-for-byte the same drawing, just re-plotted at A3.
+#
+# Identity for the R007 frame itself. An unlisted MediaBox is an error, not
+# a guess -- the fix for a new sheet size is to run the calibration and add
+# a row here, with its residuals in the commit message.
+SHEET_FITS = {
+    (1684.0, 1191.0): (1.0, 0.0, 0.0),
+    (1191.0, 842.0): (1.4648516987782647, -30.318099293274145, -21.67738969533218),
+}
+_FIT = (1.0, 0.0, 0.0)
+
+
+def media_box(data):
+    m = re.search(rb"/MediaBox\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]", data)
+    if not m:
+        raise ValueError("no /MediaBox in the PDF")
+    x0, y0, x1, y1 = (float(v) for v in m.groups())
+    return (x1 - x0, y1 - y0)
+
+
+def configure_sheet(data):
+    """Select the y-flip height and the frame fit for the sheet about to be read."""
+    global MEDIA_W, MEDIA_H, _FIT
+    w, h = media_box(data)
+    key = (round(w, 1), round(h, 1))
+    if key not in SHEET_FITS:
+        raise ValueError(
+            f"MediaBox {w:g} x {h:g} has no fit onto the plan frame. Run "
+            f"tools/cad/calibrate_sheet.py against the R007 sheet and add the "
+            f"result to cadparse.SHEET_FITS."
+        )
+    MEDIA_W, MEDIA_H = w, h
+    _FIT = SHEET_FITS[key]
+    return _FIT
+
+
+def sheet_fit():
+    return _FIT
+
 
 # Spelled without escape sequences deliberately. These are the only byte
 # literals in the file, and a mangled one is a NUL in the source rather
@@ -429,8 +497,14 @@ def scale_factor(m):
 
 
 def to_plan(x, y):
-    """PDF user space (y up) -> plan space (y down)."""
-    return (x, MEDIA_H - y)
+    """PDF user space (y up) -> plan space (y down, R007 frame).
+
+    The ONE place a page coordinate becomes a plan coordinate, which is what
+    lets the sheet fit live here and nowhere else: paths, text, image quads
+    and the in-plan test all pass through it.
+    """
+    s, tx, ty = _FIT
+    return (s * x + tx, s * (MEDIA_H - y) + ty)
 
 
 def in_plan_box(x, y):
@@ -532,6 +606,7 @@ def read(data, want_layers=None, want_text=True, want_images=False):
     third element is opt-in so that every existing two-tuple call site keeps
     working unchanged.
     """
+    fit_s = configure_sheet(data)[0]
     names = layer_names(data)
     uni = tounicode_cmap(data)
     streams = _streams_by_objnum(data)
@@ -572,8 +647,10 @@ def read(data, want_layers=None, want_text=True, want_images=False):
                         keep = True
                 plan.append(pts)
             if keep:
+                # Stroke width and text size are lengths, so they scale with
+                # the sheet fit exactly as the geometry does.
                 paths.append(Path(layer, ctm, plan, cur, painted, stroke, fill,
-                                  lw * scale_factor(ctm), join, even_odd))
+                                  lw * scale_factor(ctm) * fit_s, join, even_odd))
         cur, sub = [], []
 
     for kind, val in tokenize(content):
@@ -702,7 +779,7 @@ def read(data, want_layers=None, want_text=True, want_images=False):
                     full = mul(tm, ctm)
                     px, py = to_plan(*apply(full, 0.0, 0.0))
                     spans.append(Span(layer, px, py, text.strip(),
-                                      font_size * (abs(full[0]) or 1.0),
+                                      font_size * (abs(full[0]) or 1.0) * fit_s,
                                       in_plan_box(px, py)))
 
         operands = []

@@ -474,7 +474,7 @@ function SeatMarkerHost({
       <SeatMarker seat={seat} reduceMotion={reduceMotion} {...rest} />
       {/* The crossfade's second half: seats whose status actually changed get
           a single expanding ring, so the eye is told where to look instead of
-          having to diff 141 squares itself. */}
+          having to diff 158 squares itself. */}
       <AnimatePresence>
         {justChanged && !reduceMotion ? (
           <motion.span

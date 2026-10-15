@@ -7,9 +7,9 @@ async function openFloor(page: Page) {
   await page.waitForTimeout(600);
 }
 
-test("renders all 141 seats and no CAD paths in the live DOM", async ({ page }) => {
+test("renders all 158 seats and no CAD paths in the live DOM", async ({ page }) => {
   await openFloor(page);
-  await expect(page.locator("[data-seat]")).toHaveCount(141);
+  await expect(page.locator("[data-seat]")).toHaveCount(158);
 
   // The architecture rule: linework is one raster, not 8,603 nodes. If this
   // ever fails somebody has inlined the walls SVG and the plan will crawl.
@@ -109,7 +109,7 @@ test("the zone filter narrows the plan to one wing", async ({ page }) => {
 
   await page.getByRole("radio", { name: "Whole floor" }).click();
   await page.waitForTimeout(700);
-  await expect(page.locator("[data-seat]")).toHaveCount(141);
+  await expect(page.locator("[data-seat]")).toHaveCount(158);
 });
 
 test("fit to floor and keyboard zoom work", async ({ page }) => {
@@ -140,7 +140,7 @@ test("fit to floor and keyboard zoom work", async ({ page }) => {
 /**
  * Status LOD. The point of these three is that the LOD is a PAINT change: at
  * whole-floor zoom the plan answers a density question, and at every zoom the
- * 141 seat buttons are still there with their names, so nothing a keyboard or
+ * 158 seat buttons are still there with their names, so nothing a keyboard or
  * a screen reader can observe moves with the zoom.
  */
 test("at whole-floor zoom the plan shows bay occupancy, not per-seat status", async ({
@@ -153,7 +153,7 @@ test("at whole-floor zoom the plan shows bay occupancy, not per-seat status", as
 
   // Every seat is STILL a button with its name. This is the assertion that
   // matters: the accessible path does not degrade with the rendering.
-  await expect(page.locator("[data-seat]")).toHaveCount(141);
+  await expect(page.locator("[data-seat]")).toHaveCount(158);
   await expect(page.locator("[data-seat='C3-01']")).toHaveAttribute(
     "aria-label",
     /^Seat C3-01, Zone C, bay C3, /,
@@ -214,7 +214,7 @@ test("zooming in switches to per-seat status, and back out again", async ({ page
     await page.waitForTimeout(400);
   }
   await expect(canvas).toHaveAttribute("data-lod", "seat");
-  await expect(page.locator("[data-seat]")).toHaveCount(141);
+  await expect(page.locator("[data-seat]")).toHaveCount(158);
 
   await page.getByRole("button", { name: "Fit to floor" }).click();
   await page.waitForTimeout(900);
@@ -274,13 +274,13 @@ test("the list view carries the same seats and can be filtered", async ({ page }
   await openFloor(page);
   await page.getByRole("radio", { name: "List" }).click();
   await expect(page.getByRole("table")).toBeVisible();
-  await expect(page.getByText("141 of 141 seats")).toBeVisible();
+  await expect(page.getByText("158 of 158 seats")).toBeVisible();
 
   await page.locator("#list-zone").selectOption("D");
-  await expect(page.getByText("67 of 141 seats")).toBeVisible();
+  await expect(page.getByText("67 of 158 seats")).toBeVisible();
 
-  await page.getByLabel("Search seat, bay or person").fill("PD-01");
-  await expect(page.getByText("1 of 141 seats")).toBeVisible();
+  await page.getByLabel("Search seat, bay or person").fill("142");
+  await expect(page.getByText("1 of 158 seats")).toBeVisible();
 });
 
 test("the occupancy count is always visible", async ({ page }) => {
@@ -299,11 +299,14 @@ test("the date strip skips weekends and holidays", async ({ page }) => {
   expect(labels.join(" ")).not.toMatch(/\bSat\b|\bSun\b/);
 });
 
-test("the admin editor loads and flags interpolated seats", async ({ page }) => {
+test("the admin editor loads and reports the per-bay detection", async ({ page }) => {
   await page.goto("/admin/floor-plan");
   await page.locator("[data-seat]").first().waitFor({ timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Floor Plan Editor" })).toBeVisible();
-  await expect(page.getByText("11 interpolated")).toBeVisible();
+  // R009: every desk snaps onto its own chair block, so nothing is interpolated.
+  await expect(
+    page.getByText("Every seat in this view came from detected geometry."),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 
   // The per-bay reconciliation is on the page, not only in the handoff doc.

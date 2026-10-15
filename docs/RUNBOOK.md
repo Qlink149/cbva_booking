@@ -2,7 +2,7 @@
 
 > ## ✅ RESOLVED (2026-09-06) — production is seeded and Phase 6 is live
 >
-> Production is healthy: **141 users, 141 seats, 93 bookable, 5,804 bookings,
+> Production is healthy: **158 users, 158 seats, 110 bookable, ~6,500 bookings,
 > 5 meeting rooms, clock offset 0.** `npm run prod:check` is clean and the live
 > URL serves the Phase 6 build.
 >
@@ -104,7 +104,7 @@ target : ep-bold-dream-b36xsna6.c-4.ap-southeast-1.aws.neon.tech
 db     : neondb
 mode   : APP_MODE=demo
 
- users 141 · seats 141 · bookable 93 · bookings 5805 · meeting_rooms 5
+ users 158 · seats 158 · bookable 110 · bookings 6500 · meeting_rooms 5
  live_releases 12 · series 1 · clock_offset 0 · queued_mail 0
 migrations: 5/5 applied
 
@@ -125,7 +125,7 @@ reason not to look.
 | **A migration on disk that production has not applied** | The cause of the Phase 6 outage, and the only one that is a live failure rather than a presentation problem. `db:migrate` reads `.env.local`, so it migrates the LOCAL database; the deploy then promotes code selecting a column production was never given. |
 | Fewer than 2,000 bookings | The demo history is gone. What an interrupted seed leaves behind. |
 | Meeting rooms ≠ 5 | The seed deletes rooms before inserting; a partial run left production with one. |
-| Seats or users ≠ 141 | Test debris. |
+| Seats or users ≠ 158 | Test debris, or a database seeded before R009 (the seed retires the old `A1-01`…`PD-18` desks; run it again). |
 | No bookable seats at all | Nobody could book anything. |
 
 **Warnings — these do not block:** a non-zero clock offset, a backlog of queued

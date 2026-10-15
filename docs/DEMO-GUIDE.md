@@ -86,7 +86,7 @@ The centrepiece. `/floor`, reached from the primary nav on every page.
 ![Floor plan, whole floor, occupancy labels off](images/demo/floor-2d-whole-floor.png)
 
 **What it is.** The architect's own furniture layout — not a redrawing, the
-actual sheet, in its own colours — with 141 real, clickable desks laid over
+actual sheet, in its own colours — with 158 real, clickable desks laid over
 it. Sign in as **Ananya Gokhale (Article)** for this section: she has no
 allocated desk, so she is the group the whole booking flow exists for.
 
@@ -112,7 +112,7 @@ allocated desk, so she is the group the whole booking flow exists for.
 
   ![Occupancy labels switched on](images/demo/floor-2d-occupancy-labels-on.png)
 
-- **Plan / List** — the same 141 seats as an accessible table instead of a
+- **Plan / List** — the same 158 seats as an accessible table instead of a
   drawing. This is the keyboard- and screen-reader-first path; nothing here
   is exclusive to the visual plan.
 
@@ -354,7 +354,7 @@ few seconds rather than assuming it has failed.
 
 ## 11 · Seat inventory
 
-`/admin/seats`. All 141 desks.
+`/admin/seats`. All 158 desks.
 
 ![Seat inventory](images/demo/admin-seats.png)
 

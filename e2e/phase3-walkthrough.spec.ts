@@ -212,7 +212,7 @@ test("5 — the printable QR sheet exists and is scannable markup", async ({ pag
   await settled(page);
 
   // One inline SVG per bookable desk, generated server-side — no client JS and
-  // no runtime fetch, because the output of this page is 141 stickers.
+  // no runtime fetch, because the output of this page is 158 stickers.
   const codes = page.locator(".qr-card svg");
   expect(await codes.count()).toBeGreaterThan(90);
   await expect(page.locator(".qr-card").first()).toContainText("/checkin/");

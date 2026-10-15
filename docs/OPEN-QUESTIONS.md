@@ -31,9 +31,9 @@ for more desks than you need?
 Here is the structure of it, which is worth understanding before you answer,
 because it is not obvious:
 
-> **The 93 bookable desks are a fixed, physical fact — which specific 47
-> desks are allocated to fixed grades, plus one (PD-18) out of service,
-> leaving 93 in the pool.** That does not move when the headcount split
+> **The 110 bookable desks are a fixed, physical fact — which specific 47
+> desks are allocated to fixed grades, plus one (desk 142) out of service,
+> leaving 110 in the pool.** That does not move when the headcount split
 > changes. What moves is DEMAND: how many people the true split puts into a
 > bookable grade.
 
@@ -63,7 +63,21 @@ person. Nothing is deployed.
 
 ---
 
-## 2. Is Zone B used as a workspace on a normal day?
+## 2. Who are the 17 people at the new Zone B desks?
+
+> **Your revised layout (R009, 17 June 2025) adds 17 numbered workstations in
+> the north-west wing — desks 9 to 25, bay C — and its headcount adds a line
+> "B. = 17 PAX" with no grade against it. We have treated them as bookable
+> hot desks and the 17 as staff who book (7 Assistant Managers, 10 Articles).
+> Is that right, and who are they?**
+
+One sentence closes it; the HR list in question 1 closes it on its own.
+
+Everything below this line was the question as it stood before R009, when
+the wing was drawn with no desks at all. It is kept because the derivation
+explains what the rest of the wing's furniture is.
+
+### (Superseded) Is Zone B used as a workspace on a normal day?
 
 > **Zone B is drawn as a flexible room with eight foldable tables on castors.
 > Do staff work there on a normal day, or is it used only for training and
@@ -195,17 +209,17 @@ back:
 > **Do wings C and D correspond to specific teams or functions? If so we will
 > label them.** (Admin → Settings, one line each.)
 
-**Eleven desks are drawn in a position we inferred — ours to fix, not yours.**
-130 of the 141 desks were located from your drawing's own geometry. Eleven could
-not be, and were placed by continuing their bay's run at the drawing's measured
-1.62 m workstation pitch. They no longer overlap anything, and they are still
-flagged as inferred rather than pretending otherwise. It affects where a desk is
-*drawn*, never whether it exists or what it is counted as, so **no occupancy
-number depends on it.** Closing it properly needs fifteen minutes with somebody
-who knows the floor, in Admin → Floor plan.
+**Desk names: we use the numbers and letters on your revised plan.** R009
+numbers every desk 1–158 and marks every bay with a circled letter A–T, so that
+is what the product shows and what will go on the QR stickers. The schedule in
+the sheet's title block still uses the earlier names (A1, D1–D8, C1–C7, B1, B2,
+PASSAGE). If staff on the floor know the bays by those older names, tell us and
+we will show them as the bay's display name — one line each.
 
-The eleven: C1-06, C3-08, C3-09, C6-08, C6-09, C7-04, PA-16, D1-08, D1-09,
-D7-04, D8-04.
+**Meeting rooms are carried over from the previous drawing.** R009 does not tag
+the rooms or state their capacities; the rooms themselves have not moved. We
+have kept the five rooms and capacities from R007 (Boardroom 25, A9 10, A8 7,
+A7 5, A6 5). If any of that changed, say so.
 
 ---
 

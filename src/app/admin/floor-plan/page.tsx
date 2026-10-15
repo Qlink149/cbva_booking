@@ -9,6 +9,7 @@ import { getClock } from "@/lib/clock";
 import { db } from "@/lib/db";
 import { loadHolidays } from "@/lib/holidays";
 import { floorplanDetectionReport } from "@/lib/floorplan";
+import { TOTAL_SEATS } from "@/lib/seed-data/inventory";
 import { Card, CardBody, CardHeader, CardTitle, Table, Td, Th } from "@/components/ui/primitives";
 
 export const metadata: Metadata = { title: "Floor Plan Editor" };
@@ -57,11 +58,14 @@ export default async function Page() {
         </CardHeader>
         <CardBody>
           <p className="mb-3 text-xs text-ink-muted">
-            {detected} of 141 desks were located from the drawing&rsquo;s own geometry;{" "}
-            {interpolated} were extended along their bay&rsquo;s axis to make the
-            scheduled count. <strong>Pax</strong> is the annotation the architect wrote
-            on the drawing; where it is blank, the bay size rests on our assumption
-            rather than on the drawing.
+            Drawing R009 numbers every desk 1&ndash;{TOTAL_SEATS} and tags every bay with
+            a circled letter, so a desk&rsquo;s position is the architect&rsquo;s own
+            label. {detected} of {TOTAL_SEATS} desk numbers snapped onto the chair block
+            drawn beside them
+            {interpolated > 0
+              ? `; ${interpolated} had no chair within reach and sit on the label itself`
+              : null}
+            . <strong>Pax</strong> is the count the drawing states for the bay.
           </p>
           <Table>
             <caption className="sr-only">
@@ -98,31 +102,27 @@ export default async function Page() {
                   <Td numeric>{bay.interpolated || ""}</Td>
                 </tr>
               ))}
-              <tr>
-                <Td>
-                  <strong>Zone B</strong>
-                </Td>
-                <Td>B</Td>
-                <Td numeric>—</Td>
-                <Td numeric>0</Td>
-                <Td numeric>{report.zoneBChairsDetected}</Td>
-                <Td numeric></Td>
-              </tr>
             </tbody>
           </Table>
           <p className="mt-3 text-xs text-ink-muted">
-            The extraction found {report.unassignedChairs} chairs it could not
-            assign to a scheduled seat, by zone:{" "}
+            The extraction found {report.unassignedChairs} chair blocks that no
+            numbered desk sits on, by zone:{" "}
             {Object.entries(report.unassignedChairsByZone)
               .map(([z, n]) => `${z} ${n}`)
               .join(" · ")}
-            . Zone A&rsquo;s are the boardroom, conference rooms and reception
-            lounge, so they are accounted for. Zone B&rsquo;s{" "}
-            {report.zoneBChairsDetected} are not: that wing is marked &ldquo;NO
-            CHANGE AREA — ONLY REPAIR WORK&rdquo;, labelled &ldquo;MODULAR
-            FURNITURE&rdquo; and given no pax annotation. Whether staff sit there
-            is an open question with CBVA (ASSUMPTIONS A16) and it sets the
-            denominator for the Phase 5 occupancy figures.
+            . Zone A&rsquo;s are the boardroom, meeting rooms and reception
+            lounge. Zone B&rsquo;s {report.zoneBChairsDetected} are the modular
+            lounge seating beside its {report.zoneBExpected} numbered
+            workstations (bay C, desks 9&ndash;25), which R009 added and the
+            sheet counts as &ldquo;B. = 17 PAX&rdquo; (ASSUMPTIONS A34).
+            {report.roomsFromSheet === false ? (
+              <>
+                {" "}
+                The meeting-room schedule is carried forward from R007: R009
+                dropped the room tags and their capacities with the rest of its
+                annotation (A33).
+              </>
+            ) : null}
           </p>
         </CardBody>
       </Card>

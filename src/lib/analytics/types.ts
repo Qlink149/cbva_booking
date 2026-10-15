@@ -21,7 +21,7 @@ export interface CapacityRow {
   slot: string;
   /**
    * The STRUCTURAL supply: desks whose own status is `bookable` and which were
-   * active on this date. 93 today. This is the headline denominator — a partner
+   * active on this date. 110 today. This is the headline denominator — a partner
    * may reclaim a released desk at any time, so released fixed desks are not
    * supply anybody can plan against.
    */

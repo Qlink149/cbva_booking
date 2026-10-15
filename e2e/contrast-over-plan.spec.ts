@@ -35,7 +35,7 @@ import { expect, test } from "@playwright/test";
  *
  * The seat chips against the drawing ARE measured against real pixels — in
  * `tests/unit/texture-contrast.test.ts`, against the baked texture itself, at
- * the plan coordinate of all 141 seats. No anti-aliasing, no neighbouring chip
+ * the plan coordinate of all 158 seats. No anti-aliasing, no neighbouring chip
  * to contaminate the sample, no browser. It is a better instrument for the same
  * question, and it compares against the Phase 6 texture, so a regression is
  * distinguishable from a figure that was already there.

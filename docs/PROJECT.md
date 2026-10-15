@@ -27,14 +27,15 @@ design decision is judged against whether it produces trustworthy occupancy data
 | Director | Fixed | As above. |
 | Manager | Fixed | Book rooms. |
 | Assistant Manager | **Books** | Book a desk for each day in office. |
-| Article | **Books** | Same. The largest group — 62 of 141. |
+| Article | **Books** | Same. The largest group — 72 of 158. |
 | Admin / HR / IT | Fixed | Manage seat inventory; read analytics. |
 
-Floor 4 today: **141 desks, 141 people, 47 fixed / 94 who must book against 93
-bookable desks** (one of the 141, PD-18, is blocked — out of service) — supply
-and demand are close but not exactly balanced: 94 people against 93 desks is
-one short, not the round number it looks like at a glance. The Manager/
-Assistant Manager split that produces the 94 is an assumption (ASSUMPTIONS A1);
+Floor 4 today (drawing R009, ADR-049): **158 desks, 158 people, 47 fixed /
+111 who must book against 110 bookable desks** (one of the 158, desk 142, is
+blocked — out of service) — supply and demand are close but not exactly
+balanced: 111 people against 110 desks is one short, not the round number it
+looks like at a glance. The Manager/Assistant Manager split that produces the
+111, and who the 17 people R009 added are, are assumptions (ASSUMPTIONS A1, A34);
 see `docs/OPEN-QUESTIONS.md` for the full range this could actually be.
 
 ## 3. Core rules
@@ -142,9 +143,9 @@ with concurrency proofs, clock service, four adapters, realistic seed
 **Phase 2 — CAD pipeline and 2D floor plan ✅**
 `npm run build:floorplan` reads the 44 CAD layers with a stdlib PDF interpreter
 and writes walls, zones, seat anchors and a baked texture into
-`src/data/floorplan/`. 130 of 141 desks (92.2%) were located from the drawing's
-own geometry by detecting the repeated chair block; 11 were interpolated and are
-flagged as such. `/floor` renders the linework as one raster with 141 real
+`src/data/floorplan/`. Under R009 every one of the 158 desks is placed from the
+architect's own desk number and snapped onto its chair block (under R007, 130
+of 141 were detected and 11 interpolated). `/floor` renders the linework as one raster with 158 real
 `<button>` seats over it, with pan/zoom, zone focus, a list view and the state in
 the URL. `/admin/floor-plan` drags, rotates and retires desks and exports the
 corrections back to the committed geometry.

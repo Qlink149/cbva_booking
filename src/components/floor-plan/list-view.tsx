@@ -104,12 +104,12 @@ export function ListView({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             // Seat codes are not words. Autocorrect and spellcheck fight the
-            // user over "C3-04" and "PD".
+            // user over "37" and "S".
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            placeholder="C3-04, PD, Anand…"
+            placeholder="37, S, Anand…"
             className="h-9 w-full rounded-sm border border-hairline bg-surface px-2 text-sm"
           />
         </div>
