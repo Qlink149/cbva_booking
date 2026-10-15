@@ -186,6 +186,18 @@ export const detectionReportSchema = z.object({
    */
   workstationRunPax: z.number().int().nullable().optional(),
   seatsConfirmedByDrawingPax: z.number().int(),
+  /**
+   * R009 (ADR-049): the title block's own bay schedule and grade headcount,
+   * in sheet order. The bay rows still use the R007 names (A1, D1–D8,
+   * PASSAGE, C1–C7, B1, B2) and sum to the same total the plan's numbered
+   * desks do, by a different grouping — ASSUMPTIONS A32.
+   */
+  sheetSchedule: z.array(z.object({ label: z.string(), pax: z.number().int().nullable() })).optional(),
+  sheetHeadcountByGrade: z
+    .array(z.object({ label: z.string(), pax: z.number().int().nullable() }))
+    .optional(),
+  /** False when the sheet carries no room tags and rooms.json is the R007 schedule carried forward (A33). */
+  roomsFromSheet: z.boolean().optional(),
   zoneBChairsDetected: z.number().int(),
   zoneBExpected: z.number().int(),
   unassignedChairs: z.number().int(),

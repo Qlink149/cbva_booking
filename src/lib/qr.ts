@@ -25,7 +25,7 @@ export function seatCheckInUrl(seatCode: string, origin = appOrigin()): string {
 /**
  * SVG rather than a data-URI PNG: it prints at any size without going soft, and
  * inlining it means the print sheet has no network dependency at all — which
- * matters when 141 of them are being run off on an office printer.
+ * matters when 158 of them are being run off on an office printer.
  *
  * Error correction M tolerates a smudged or partly peeled sticker.
  */

@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/primitives";
 import { floorplanDetectionReport } from "@/lib/floorplan";
+import { TOTAL_SEATS } from "@/lib/seed-data/inventory";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -25,9 +26,11 @@ const TOOLS = [
     href: "/admin/seats",
     title: "Seat inventory",
     body: (interpolated: number) =>
-      `All 141 desks: allocate one to somebody, take one out of service, or hand one back to the pool. ${interpolated} desk${
-        interpolated === 1 ? "" : "s"
-      } still sit on interpolated positions and are flagged in the floor plan editor for checking.`,
+      interpolated === 0
+        ? `All ${TOTAL_SEATS} desks: allocate one to somebody, take one out of service, or hand one back to the pool. Every desk sits where the architect numbered it.`
+        : `All ${TOTAL_SEATS} desks: allocate one to somebody, take one out of service, or hand one back to the pool. ${interpolated} desk${
+            interpolated === 1 ? "" : "s"
+          } still sit on interpolated positions and are flagged in the floor plan editor for checking.`,
   },
   {
     href: "/admin/users",

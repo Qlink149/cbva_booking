@@ -43,7 +43,8 @@ const PITCH_UNITS = 1624 / MM_PER_UNIT;
 const MIN_UNITS = 1300 / MM_PER_UNIT;
 
 const metres = (u) => (u * MM_PER_UNIT) / 1000;
-const seatNo = (code) => Number(code.split("-")[1]);
+// R009 seat codes ARE the desk numbers; R007's were `BAY-NN`.
+const seatNo = (code) => Number(code.includes("-") ? code.split("-")[1] : code);
 const dist = (a, b) => Math.hypot(a.planX - b.planX, a.planY - b.planY);
 
 function collisions(seats) {

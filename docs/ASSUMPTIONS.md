@@ -8,6 +8,8 @@ file it affects so it can be found and changed when an answer arrives.
 > for somebody who has not read the code. This file stays the engineering
 > record — it names files and keeps the derivations.
 
+**R009 status (16 Oct 2026, ADR-049).** The architect's revised layout (R009, 17-06-2025) numbers every desk 1–158 and tags every bay with a circled letter A–T. **A16 is CLOSED** — Zone B carries 17 numbered workstations now (bay C, desks 9–25). **A24 is CLOSED** — every desk is placed from the architect's own desk number and snaps onto its chair block; nothing is interpolated. A2, A12 and A13 are re-expressed in the new numbering. **New: A32** (bay letters vs the sheet's own schedule names), **A33** (meeting rooms carried forward — R009 carries no room tags), **A34** (who the 17 new people are), **A35** (R009 is plotted with no line weights; the texture restores R007's). The client trio is now **A1**, **A17** and **A34**.
+
 **Phase 7 status.** **A11 is CLOSED as a disclosure problem and REOPENED as a
 client question** — Zone C and D no longer carry invented names on screen; the
 question "do wings C and D correspond to specific teams or functions?" goes to
@@ -70,14 +72,17 @@ allocated seat. Nothing else in Phase 1 is as important as this.
 
 **Assumed:** a deterministic allocation, 47 desks:
 
-| Grade | Seats | Count |
+| Grade | Desks (R009 numbers) | Count |
 |---|---|---|
-| Director (management cabin) | D5-01 | 1 |
-| Partner | A1-01…04, A2-01…04, C1-01…06, C2-01, C2-02 | 16 |
-| Manager | C2-03, C2-04, C4-01…08, D6-01…04, D7-01…04, D8-01…04 | 22 |
-| Admin / HR / IT | C3-01…08 | 8 |
+| Director (management cabin, bay O) | 112 | 1 |
+| Partner | 1–8 (bays A, B), 26–31 (bay D), 32, 33 (bay E) | 16 |
+| Manager | 34, 35 (bay E), 45–52 (bay G), 113–124 (bays P, Q, R) | 22 |
+| Admin / HR / IT | 36–43 (bay F) | 8 |
 
-Both passage runs (PA-01…16, PD-01…18) stay bookable.
+Both passage runs (S: 125–142, T: 143–158), Zone B's bay C (9–25) and every
+other open bay stay bookable. Under R007 the same allocation read D5-01;
+A1/A2/C1/C2; C2/C4/D6–D8; C3 — this is that allocation translated desk for
+desk, not a new guess.
 
 **Affects:** `src/lib/seed-data/inventory.ts` → `FIXED_SEAT_ALLOCATION`.
 
@@ -140,9 +145,15 @@ the architect's tag rather than on a display name CBVA is expected to change.
 
 ---
 
-### A16 — 🟠 DOWNGRADED in Phase 6 — Zone B is a flexible room, and it no longer gates the headline number
+### A16 — ✅ CLOSED by R009 — Zone B now carries 17 numbered workstations
 
-**Assumed:** no bookable seats in Zone B.
+**Closed 16 Oct 2026.** Drawing R009 places 17 numbered desks (9–25, circled
+bay letter C) in the north-west wing and counts them in its title block as
+`B1 = 9 PAX`, `B2 = 8 PAX` and `5. B. = 17 PAX`. The wing is no longer
+seatless and the question below no longer exists; what remains is who sits
+there, which is A34. The Phase 6 derivation is kept beneath for the record.
+
+**Was assumed:** no bookable seats in Zone B.
 
 **What the drawing settles, re-read at the vector level.** Everything below is
 measured, not inferred from the layout:
@@ -451,17 +462,19 @@ what let a wrong one sit unexamined for five phases.
 
 ### A12 — Seat types per bay
 
-**Assumed:** PA/PD → `passage`; A1, A2, D5 → `cabin`; C7 → `foldable`; the rest
-`workstation`.
+**Assumed:** bays S and T (the passage runs) → `passage`; A, B and O → `cabin`;
+J → `foldable`; the rest `workstation`. (R007 names: PA/PD, A1/A2/D5, C7.)
 **Affects:** `src/lib/seed-data/inventory.ts` → `seatTypeForBay()`. The `cabin`
-and `passage` calls follow the drawing; **`foldable` for C7 is a guess** made so
+and `passage` calls follow the drawing; **`foldable` for J is a guess** made so
 the enum has a live example.
 
-### A13 — One blocked desk (PD-18)
+### A13 — One blocked desk (142)
 
-**Assumed:** one desk out of service, so the "blocked" status has a live example
-and analytics has to cope with capacity below the raw seat count.
-**Affects:** `scripts/seed.ts`. Entirely invented.
+**Assumed:** one desk out of service — desk 142, the last of the zone-D passage
+run (PD-18 under R007) — so the "blocked" status has a live example and
+analytics has to cope with capacity below the raw seat count.
+**Affects:** `src/lib/seed-data/inventory.ts` → `BLOCKED_SEAT_CODE`, read by
+`scripts/seed.ts`. Entirely invented.
 
 ### A14 — Staff names and teams
 
@@ -727,7 +740,14 @@ than producing a wrong booking or a wrong occupancy figure. Precedent: A15.
 
 ---
 
-### A24 — 🟡 PARTLY CLOSED in Phase 5 — the eleven no longer overlap, but they are still inferred
+### A24 — ✅ CLOSED by R009 — every desk is placed from the architect's own desk number
+
+**Closed 16 Oct 2026.** R009 numbers all 158 desks on the plan. Each number
+label snaps onto the chair block drawn beside it (158 of 158, none further
+than 20.3 plan units, no chair claimed twice, closest pair 1.35 m apart), so
+`seats.json` carries zero `interpolated` anchors and the de-collide step is
+a no-op that still runs as a guard. The record below is what the problem
+was under R007.
 
 **Assumed:** the eleven anchors Phase 2 could not detect — `C1-06`, `C3-08`,
 `C3-09`, `C6-08`, `C6-09`, `C7-04`, `PA-16`, `D1-08`, `D1-09`, `D7-04`, `D8-04`
@@ -996,3 +1016,79 @@ aren't assumptions.
 **If CBVA wants otherwise:** a cap is one call to `isBookableDate` from
 `booking-days.ts` in `roomDateIssue`. Refusing the current hour is
 `firstOpenHour + 1` for today.
+
+### A32 — 🟠 Bays are the circled letters A–T on the plan, not the names in the sheet's schedule
+
+**Decided with Rajendra (16 Oct 2026):** seat codes are the architect's desk
+numbers (`1`…`158`) and bay names are the circled letters the plan carries
+(A–T), because that is what somebody standing on the floor can read.
+
+**What the drawing says, and where it disagrees with itself.** The plan tags
+each bay with a letter and numbers the desks contiguously in letter order
+(A = 1–4, B = 5–8, C = 9–25, … S = 125–142, T = 143–158); the build verifies
+that every range's centroid is nearest its own letter. The title block of the
+same sheet still lists the bays under the **R007** names — `A1`, `A2`, `D1`–`D8`,
+`PASSAGE = 18`, `C1`–`C7`, `B1 = 9`, `B2 = 8`, `PASSAGE = 16` — and sums them
+to the same 158. The two groupings do not map one-to-one: the sheet's `B1`/`B2`
+are one letter (C) on the plan, and some R007 bay boundaries moved (desks 76
+and 84, which R007 drew as passage, are counted in bay K by the numbering).
+
+**Affects:** `tools/cad/build_floorplan.py` → `SCHEDULE`, `BAY_FIRST`,
+`BAY_ZONE`; `src/lib/seed-data/inventory.ts` → `BAYS`, `seatCodes()`;
+`detection-report.json` → `sheetSchedule` keeps the title block's version.
+
+**Ask CBVA:** which names do staff actually use on the floor — the letters or
+the old bay names? If the latter, the display name of a bay is one table.
+
+### A33 — 🟡 The five meeting rooms are carried forward from R007; R009 does not annotate them
+
+**Assumed:** the rooms and their capacities are unchanged (A3 = 25, A9 = 10,
+A8 = 7, A7 = 5, A6 = 5; A4 storage, A5 lounge). R009 dropped the zone-A room
+tags and their PAX annotations with the rest of its on-plan annotation; the
+shell, the boardroom chairs and the room furniture are identical to R007
+(structural layers fit to within 0.22 pt). So the build keeps R007's schedule
+(`ROOMS_R007`) and the report says so (`roomsFromSheet: false`).
+
+**Affects:** `tools/cad/build_floorplan.py` → `ROOMS_R007`, `room_labels()`;
+`src/lib/seed-data/inventory.ts` → `MEETING_ROOMS`; `rooms.json`.
+
+**Why it is worth confirming:** if a revision later changes a room, nothing in
+R009's drawing would tell us.
+
+### A34 — 🟠 The 17 people behind "B. = 17 PAX" are bookable-grade staff, 7 Assistant Managers and 10 Articles
+
+**Decided with Rajendra (16 Oct 2026):** Zone B's 17 new desks are bookable hot
+desks, not allocated seats. **Assumed by us:** the 17 extra people the sheet's
+headcount adds under `5. B. = 17 PAX` are therefore bookable grades, split 7
+Assistant Managers / 10 Articles to keep the roster's rough 1:2 ratio. The
+sheet gives the line no grade. Headcount is now 158: Partner 16, Director 1,
+Manager 22, Assistant Manager 39, Article 72, Admin/HR/IT 8; 111 people must
+book against 110 bookable desks (one blocked), keeping the one-desk-short
+balance R007 had (94 against 93).
+
+**Affects:** `src/lib/seed-data/inventory.ts` → `HEADCOUNT`,
+`R009_ADDED_PEOPLE`; `scripts/seed.ts` (generates the 17 after the original
+141 so nobody's email changes); every analytics denominator.
+
+**Ask CBVA:** who are the 17, and are the Zone B desks really bookable? With
+the HR list (A1) this question answers itself.
+
+### A35 — 🟡 R009 is plotted with no line weights and colour-by-layer; the texture restores R007's weights
+
+**Observed, not assumed:** every one of R009's 81,748 paths has stroke width 0
+("one device pixel"), where R007 plotted eight weights from 0.15 to 1.41 pt;
+and every layer took a single colour (walls `#DD3700`, columns `#5CB800`, the
+real partitions `#BF7FFF`…) where R007 coloured by object. The building did not
+change, the plot style did.
+
+**Assumed:** the weights R007 plotted per layer are the ones to show, so
+`tools/cad/texture.py` → `PLOT_WEIGHTS` fills them in by layer (and by colour
+where a layer mixes classes), and `MUTED` maps each new layer colour onto the
+target its R007 colour had. The result is the same picture of the same
+building; without this the texture is uniformly hairline and walls do not read
+heavier than furniture.
+
+**Affects:** `tools/cad/texture.py`; `tools/cad/build_floorplan.py` →
+`PARTITION_STROKES` (the colour key for real partitions is now per sheet:
+black on R007, `#BF7FFF` on R009 — measured, 70% of those vertices lie on
+R007's black partition lines).

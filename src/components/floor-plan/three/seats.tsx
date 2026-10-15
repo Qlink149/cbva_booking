@@ -23,7 +23,7 @@ import type { LodLevel } from "@/lib/floor-plan-lod";
 import type { SeatVisualStatus } from "@/components/seat/seat-status";
 
 /**
- * 141 desks and 141 chairs in two draw calls.
+ * 158 desks and 158 chairs in two draw calls.
  *
  * The furniture is NOT CAD geometry. Extruding the furniture layer would be
  * 49,342 paths of hatched desktop that cannot even be segmented into individual
@@ -92,7 +92,7 @@ export function Seats({
   const geometries = useGeometries();
 
   /**
-   * The hover lift, animated on ONE object rather than by re-rendering 141.
+   * The hover lift, animated on ONE object rather than by re-rendering 158.
    * Re-rendering the instance list on every pointer move is what turns a 60fps
    * scene into a 20fps one; the raise is a transform, so it belongs in the
    * frame loop and not in React.
@@ -190,7 +190,7 @@ export function Seats({
 
           Dropped entirely at bay detail. NOT scaled up to compensate -- that
           is Phase 4 defect 7, where growing the plate to chase legibility
-          stretched the atlas cell's centred glyph with it and turned all 141
+          stretched the atlas cell's centred glyph with it and turned all 158
           desks into smears. A mark that cannot resolve should not be drawn. */}
       {lod === "seat" && GLYPH_ORDER.map((status, index) => {
         const list = byStatus.get(status);
@@ -260,7 +260,7 @@ function GlyphPlates({
  *
  * Gold appears exactly twice on this floor: a thin ring on the desk that is
  * yours, and a slightly heavier one on the desk whose dialog is open. Never a
- * fill, never a whole object. At 141 desks it stays far under the 5% of pixels
+ * fill, never a whole object. At 158 desks it stays far under the 5% of pixels
  * the design system allows.
  */
 function Rings({

@@ -178,8 +178,8 @@ export default async function HomePage() {
               <InventoryRow label="Blocked" value={Number(inventory?.blocked ?? 0)} />
             </dl>
             <p className="mt-4 border-t border-hairline pt-3 text-xs text-ink-subtle">
-              130 of 141 desks are positioned directly from the architect&rsquo;s
-              drawing; 11 are interpolated and flagged in{" "}
+              Every desk is positioned from the architect&rsquo;s own desk number on
+              drawing R009; corrections are made in{" "}
               <Link href="/admin/floor-plan" className="underline">
                 the floor plan editor
               </Link>

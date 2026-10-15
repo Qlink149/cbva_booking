@@ -42,7 +42,7 @@ async function settle(page: Page, path: string) {
     await page.getByRole("table").waitFor({ timeout: 30_000 });
   }
   if (path === "/admin/qr") {
-    // 93 QR codes are generated server-side; the last one is the signal.
+    // 110 QR codes are generated server-side; the last one is the signal.
     await page.locator(".qr-card").last().waitFor({ timeout: 30_000 });
   }
 }

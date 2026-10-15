@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     .leftJoin(schema.users, eq(schema.seats.assignedUserId, schema.users.id));
 
   // Fixed desks their owners have handed back for exactly this date and slot.
-  // One query, not 141 — the seat loop below reads the Map.
+  // One query, not 158 — the seat loop below reads the Map.
   const releases = await liveReleasesFor(database, date, slot);
 
   const bookingRows = await database

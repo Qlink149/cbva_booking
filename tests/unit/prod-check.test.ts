@@ -24,9 +24,9 @@ const ALL_MIGRATIONS = [
 ];
 
 const healthy = {
-  users: 141,
-  seats: 141,
-  bookable: 93,
+  users: 158,
+  seats: 158,
+  bookable: 110,
   bookings: 5804,
   meeting_rooms: 5,
   live_releases: 3,
@@ -35,7 +35,7 @@ const healthy = {
   queued_mail: 2,
   // Measured against the real seeded database (Phase 8 / B2): a single day's
   // auto_released count normally runs 19–27% of bookable capacity in the
-  // worst slot; 12 of 93 (~13%) is a representative healthy snapshot.
+  // worst slot; 12 of 110 (~11%) is a representative healthy snapshot.
   auto_released_today: 12,
   recent_auto_released: 25,
   recent_held: 1888,
@@ -190,7 +190,7 @@ describe("the distribution guard — auto-released desks", () => {
     // is 19/57 (33%). This must stay a pass, or the guard fires on ordinary
     // demo data and nobody trusts it by the second run.
     const { failures } = evaluateProduction(
-      { ...healthy, bookable: 93, auto_released_today: 19 },
+      { ...healthy, bookable: 110, auto_released_today: 19 },
       fullyMigrated,
     );
     expect(failures).toEqual([]);
@@ -221,9 +221,9 @@ describe("the distribution guard — auto-released desks", () => {
     // new columns at all. Undefined must not throw and must not fail.
     const { failures } = evaluateProduction(
       {
-        users: 141,
-        seats: 141,
-        bookable: 93,
+        users: 158,
+        seats: 158,
+        bookable: 110,
         bookings: 5804,
         meeting_rooms: 5,
         live_releases: 3,

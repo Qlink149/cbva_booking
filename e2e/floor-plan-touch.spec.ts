@@ -20,7 +20,7 @@ import { expect, test, type CDPSession, type Page } from "@playwright/test";
  * FINDING, RECORDED HERE SO IT DOES NOT GET RE-INVESTIGATED. The touch-pan
  * bug was real: `use-pan-zoom.ts`'s `onPointerDown` used to bail out of
  * starting a pan entirely whenever the press landed on `[data-seat]`, and at
- * fit-to-floor on a phone the 141 seat buttons (13px, ~11px pitch) nearly
+ * fit-to-floor on a phone the 158 seat buttons (13px, ~11px pitch) nearly
  * tile the surface — so almost every touch landed on a seat and no pan could
  * ever begin. The desktop right-edge clip did NOT reproduce: `/floor` and
  * `/admin/floor-plan` were checked at 768/900/1024/1280/1440px, with a zone
@@ -104,7 +104,7 @@ async function touchTap(cdp: CDPSession, x: number, y: number) {
 /**
  * An available seat whose bounding-box centre a tap can actually land on.
  *
- * At fit-to-floor on a 390px phone the 141 seat markers are documented (top
+ * At fit-to-floor on a 390px phone the 158 seat markers are documented (top
  * of file) to nearly tile the surface — the ~11px pitch is tighter than the
  * ~13px marker, so adjacent hit-areas genuinely overlap by a couple of
  * pixels. `.first()`'s bounding-box centre can therefore sit on the wrong
@@ -123,7 +123,7 @@ async function findTappableSeat(
   for (const code of codes) {
     const candidate = page.locator(`[data-seat="${code}"]`);
     // `elementFromPoint` only hit-tests the current viewport — most of these
-    // 141 seats start scrolled out of it, and a box for an off-screen seat
+    // 158 seats start scrolled out of it, and a box for an off-screen seat
     // hit-tests as nothing, not as itself.
     await candidate.scrollIntoViewIfNeeded();
     const box = await candidate.boundingBox();

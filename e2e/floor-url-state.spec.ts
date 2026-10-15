@@ -22,7 +22,7 @@ test("a deep link restores date, slot, zone and view", async ({ page }) => {
     "aria-checked",
     "true",
   );
-  // Zone D is 67 of the 141 seats.
+  // Zone D is 67 of the 158 seats.
   await expect(page.getByText("67 of 67 seats")).toBeVisible();
 });
 

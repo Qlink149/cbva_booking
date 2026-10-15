@@ -187,7 +187,7 @@ cookie (the role switcher writes it). `MailProvider` writes to
 
 **The CAD linework never enters the live DOM.** The wall layer is 8,603 paths
 and the furniture layer 49,342. The drawing ships as one baked webp
-(`public/floorplan/`); the only interactive nodes are the 141 seats.
+(`public/floorplan/`); the only interactive nodes are the 158 seats.
 `e2e/floor-plan.spec.ts` asserts fewer than 50 SVG paths on the page.
 
 **Seat position is data; 2D versus 3D is a rendering choice.** The signature is

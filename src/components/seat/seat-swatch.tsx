@@ -6,7 +6,7 @@ import {
 
 interface SeatSwatchProps {
   status: SeatVisualStatus;
-  /** Seat code, e.g. "C3-04". Rendered in mono, as the type rules require. */
+  /** Seat code, e.g. "37" (the architect's desk number). Rendered in mono, as the type rules require. */
   code?: string;
   size?: "sm" | "md" | "lg";
   className?: string;

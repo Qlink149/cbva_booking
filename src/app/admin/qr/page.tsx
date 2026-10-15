@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 /**
  * The printable sheet: one QR sticker per bookable desk.
  *
- * The artefact that actually goes on 141 desks, so it is built for a printer
+ * The artefact that actually goes on 158 desks, so it is built for a printer
  * rather than a screen — 12 to an A4 page, cut lines implied by the hairline
  * borders, and the URL printed in full underneath each code so a sticker that
  * will not scan is still usable and so anybody can see there is nothing secret

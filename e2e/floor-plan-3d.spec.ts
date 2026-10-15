@@ -114,7 +114,7 @@ test.describe("the 3D floor plan", () => {
     );
     await expect(page.locator("canvas")).toHaveCount(0);
     // The keyboard-operable rendering is what is on screen until asked.
-    await expect(page.locator("[data-seat]")).toHaveCount(141);
+    await expect(page.locator("[data-seat]")).toHaveCount(158);
   });
 
   test("renders the whole floor inside the draw call budget", async ({ page }) => {
@@ -199,7 +199,7 @@ test.describe("the 3D floor plan", () => {
     await openFloor(page);
     await enter3d(page);
 
-    // The 2D plan's 141 buttons are gone; the scene draws seats, it does not
+    // The 2D plan's 158 buttons are gone; the scene draws seats, it does not
     // mint elements for them. And the ADR-019 promise still holds: the drawing
     // is a raster, never thousands of paths.
     await expect(page.locator("[data-seat]")).toHaveCount(0);
@@ -212,7 +212,8 @@ test.describe("the 3D floor plan", () => {
     await enter3d(page);
 
     const code = await hoverSeat(page);
-    expect(code).toMatch(/^[A-Z]+\d*-\d+$/);
+    // R009 seat codes are the architect's desk numbers, 1-158.
+    expect(code).toMatch(/^\d{1,3}$/);
 
     // And it is one of the desks the floor actually has, not a stray index.
     await page.getByRole("radio", { name: "Plan view" }).click({ noWaitAfter: true });
@@ -278,7 +279,7 @@ test.describe("the 3D floor plan", () => {
 
     const after = await stats(page);
     expect(after.frames).toBeGreaterThan(before.frames);
-    // Zone C holds 66 of the 141 desks, so the scene really did shed geometry.
+    // Zone C holds 66 of the 158 desks, so the scene really did shed geometry.
     expect(after.triangles).toBeLessThan(before.triangles);
 
     // And it round-trips through the URL with everything else.
@@ -332,7 +333,7 @@ test.describe("the 3D floor plan", () => {
       "unsupported",
     );
     // The point of the fallback: the floor is still completely usable.
-    await expect(page.locator("[data-seat]")).toHaveCount(141);
+    await expect(page.locator("[data-seat]")).toHaveCount(158);
     await expect(page.locator("canvas")).toHaveCount(0);
   });
 
@@ -343,7 +344,7 @@ test.describe("the 3D floor plan", () => {
     // 3D is not the accessible path, so the way to a keyboard-operable view has
     // to stay visible while it is showing.
     await page.getByRole("radio", { name: "List" }).click({ noWaitAfter: true });
-    await expect(page.getByText("141 of 141 seats")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("158 of 158 seats")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("canvas")).toHaveCount(0);
   });
 

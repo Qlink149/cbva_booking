@@ -312,7 +312,7 @@ const CASES: Array<[string, string, (page: Page) => Promise<void>]> = [
 for (const [name, path, prepare] of CASES) {
   test(`no serious accessibility violations: ${name}`, async ({ page }) => {
     /**
-     * The seat inventory is 141 rows carrying two selects each, so axe walks
+     * The seat inventory is 158 rows carrying two selects each, so axe walks
      * roughly 1,100 interactive nodes. That is a real cost of auditing the
      * whole page rather than a sample, and it does not fit the suite's 60s
      * default — the assertion underneath is unchanged.
@@ -362,11 +362,11 @@ test("every seat is a real button with an accessible name", async ({ page }) => 
       })),
     );
 
-  expect(names).toHaveLength(141);
+  expect(names).toHaveLength(158);
   for (const { tag, label } of names) {
     expect(tag).toBe("BUTTON");
     // "Seat C3-04, Zone C, bay C3, Available" — code, zone, bay and state.
-    expect(label).toMatch(/^Seat [A-Z]+\d*-\d{2}, Zone [ABCD], bay [A-Z]+\d*, .+/);
+    expect(label).toMatch(/^Seat \d{1,3}, Zone [ABCD], bay [A-T], .+/);
   }
 });
 

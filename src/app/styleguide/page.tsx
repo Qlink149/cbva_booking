@@ -211,7 +211,7 @@ export default function StyleguidePage() {
                       <SeatSwatch status={status} />
                     </Td>
                     <Td>
-                      <SeatSwatchWithGlyph status={status} code="C3-04" />
+                      <SeatSwatchWithGlyph status={status} code="37" />
                     </Td>
                     <Td className="text-sm text-ink-muted">
                       {describeCue(status)}
@@ -239,7 +239,7 @@ export default function StyleguidePage() {
         <div className="flex flex-wrap gap-3 rounded-md border border-hairline bg-surface p-4 [filter:grayscale(1)]">
           {SEAT_STATUSES.map((status) => (
             <div key={status} className="text-center">
-              <SeatSwatchWithGlyph status={status} code="C3-04" />
+              <SeatSwatchWithGlyph status={status} code="37" />
               <p className="mt-1.5 text-[11px] text-ink-muted">
                 {SEAT_STATUS_TOKENS[status].label}
               </p>
@@ -253,15 +253,15 @@ export default function StyleguidePage() {
         <div className="inline-flex flex-col gap-2 rounded-md border border-hairline bg-surface p-4">
           <p className="seat-code text-[11px] tracking-wide text-ink-subtle">BAY C3</p>
           <div className="grid grid-cols-3 gap-1.5">
-            <SeatSwatch status="available" code="C3-01" size="lg" />
-            <SeatSwatch status="booked" code="C3-02" size="lg" />
-            <SeatSwatch status="checked_in" code="C3-03" size="lg" />
-            <SeatSwatch status="your_booking" code="C3-04" size="lg" />
-            <SeatSwatch status="reserved_fixed" code="C3-05" size="lg" />
-            <SeatSwatch status="available" code="C3-06" size="lg" />
-            <SeatSwatch status="auto_released" code="C3-07" size="lg" />
-            <SeatSwatch status="blocked" code="C3-08" size="lg" />
-            <SeatSwatch status="available" code="C3-09" size="lg" />
+            <SeatSwatch status="available" code="36" size="lg" />
+            <SeatSwatch status="booked" code="38" size="lg" />
+            <SeatSwatch status="checked_in" code="39" size="lg" />
+            <SeatSwatch status="your_booking" code="37" size="lg" />
+            <SeatSwatch status="reserved_fixed" code="40" size="lg" />
+            <SeatSwatch status="available" code="41" size="lg" />
+            <SeatSwatch status="auto_released" code="42" size="lg" />
+            <SeatSwatch status="blocked" code="43" size="lg" />
+            <SeatSwatch status="available" code="44" size="lg" />
           </div>
         </div>
       </Section>
@@ -348,7 +348,7 @@ export default function StyleguidePage() {
                   autoComplete="off"
                   spellCheck={false}
                   className="seat-code"
-                  placeholder="C3-04…"
+                  placeholder="37…"
                 />
               </div>
               <div className="space-y-1.5">

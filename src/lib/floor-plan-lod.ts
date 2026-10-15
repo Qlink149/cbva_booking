@@ -101,8 +101,8 @@ export interface BayOccupancy {
  * bay's size and the map drew a picture of which bays were biggest. PD has 18
  * desks and D5 has one; an undivided count says nothing about either.
  *
- * `capacity` can be 0 — C3 is entirely allocated to admin/HR/IT and PD-18 is
- * blocked — so callers must guard the division. A bay with no bookable supply
+ * `capacity` can be 0 — bay O is the one allocated management cabin and desk
+ * 142 is blocked — so callers must guard the division. A bay with no bookable supply
  * is not 0% full, it is not a question.
  */
 export function bayOccupancy(seats: FloorPlanSeat[]): BayOccupancy[] {

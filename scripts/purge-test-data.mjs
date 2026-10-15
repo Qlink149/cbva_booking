@@ -7,7 +7,7 @@
  * `afterAll`. A killed run, a crashed process or a timed-out hook leaves them,
  * and the debris is not inert:
  *
- *   · orphan seats make `expect(seats).toHaveLength(141)` fail
+ *   · orphan seats make `expect(seats).toHaveLength(158)` fail
  *   · orphan users make the seed report 145 people
  *   · orphan series keep the materialiser queueing failure notifications, which
  *     then break the edge-case test that counts dispatch results

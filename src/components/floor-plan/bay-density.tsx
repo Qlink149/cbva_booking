@@ -31,7 +31,7 @@ const CHIP_H = 28;
  * Bay-level occupancy, drawn only at whole-floor zoom.
  *
  * PRESENTATIONAL, AND AT NO POINT THE ACCESSIBLE PATH. This layer is
- * aria-hidden and pointer-events-none. The 141 seat <button>s stay in the DOM
+ * aria-hidden and pointer-events-none. The 158 seat <button>s stay in the DOM
  * at every zoom with their names intact -- they are simply painted as plain
  * dots underneath this, so a screen reader, the keyboard, the list view and
  * every e2e count behave exactly as they did. ADR-032's rule holds: a

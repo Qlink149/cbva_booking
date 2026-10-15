@@ -232,11 +232,11 @@ export function TrendsClient() {
                 Read this with two caveats.
               </strong>{" "}
               The denominator assumes the Manager / Assistant Manager split we
-              were given is right (open question A1), and that nobody sits in
-              Zone B (A16). If the north-west wing is occupied the pool is
-              closer to 115–126 rather than {h.pool}, and every utilisation
-              figure here is overstated by roughly a quarter. Both are one
-              sentence from CBVA away from being settled.
+              were given is right (open question A1), and that the 17 new
+              workstations in Zone B are hot desks rather than allocated seats
+              (A34). If either is wrong the pool of {h.pool} moves, and every
+              utilisation figure here moves with it. Both are one sentence from
+              CBVA away from being settled.
             </p>
           </CardBody>
         </Card>

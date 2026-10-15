@@ -21,9 +21,16 @@ not marginal. Measured from the source PDF with the repo's own stdlib parser:
     filled paths                         149   kept as 0, everything fill="none"
     embedded bitmaps in the plan          11   kept as 0, structurally unseen
 
-The eleven bitmaps are the solid B.P.G storage credenzas. A vector-only
-extractor cannot see them at all, so their absence was completely silent for
-five phases.
+The bitmaps are the solid B.P.G storage credenzas (eleven on R007, six on
+R009). A vector-only extractor cannot see them at all, so their absence was
+completely silent for five phases.
+
+R009 (ADR-049) changed two of the inputs above without changing the drawing:
+it is plotted colour-by-layer rather than colour-by-object, and with line
+weights switched off, so every path is zero-width. MUTED maps the new layer
+colours onto the targets their R007 colours had, and PLOT_WEIGHTS restores
+the weights R007 plotted, so the texture rebuilt from R009 is the same
+picture of the same building.
 
 ADR-046 records why this is a stdlib port rather than an adoption of the
 PyMuPDF reference implementation in reference_render_plan_full.py.
@@ -47,15 +54,64 @@ SHEET_ONLY = {"AR- TEXT", "AR- HATCH", "AR- FURN", "AR- SMALL CAR"}
 # signal that worked. That is why audit() asserts an EXACT count and not a
 # bound, and why changing one of these boxes must be re-verified against the
 # PDF rather than by updating the constant.
+#
+# R009 (ADR-049) moved the "NO CHANGE AREA" key from the top-left wedge to
+# sit above the material key, and dropped the furniture key column at the
+# bottom altogether. Both boxes were re-measured on the calibrated sheet as
+# the tight bounding box of every path inside a deliberately loose window
+# (975 F-FURNITURE paths at 664.5-727.8 x 99.2-185.5; 800 paths at
+# 663.3-726.5 x 239.1-325.4), then padded by ~2 pt. The old furniture-key
+# window contains nothing on R009. The title block starts at x = 1376.8 and
+# is outside PLAN_BOX, so cadparse never returns its paths and the count
+# below is the two keys alone: 980 F-FURNITURE + 542 layer-0 + 178
+# F-FURNITURE HATCH + 75 G-GLASS.
 EXCLUDE = [
-    (431, 96, 500, 188),      # "NO CHANGE AREA" three-swatch key
-    (661, 236, 728, 328),     # material key, 3x2 swatch grid (holds one bitmap)
-    (559, 857, 597, 999),     # furniture key swatch column
+    (662, 97, 730, 188),      # "NO CHANGE AREA" three-swatch key
+    (661, 237, 729, 328),     # material key, 3x2 swatch grid (holds one bitmap)
     (1370, 0, 1684, 1191),    # title block
 ]
 
-EXPECTED_EXCLUDED_IN_PLAN = 2492
-EXPECTED_PLAN_IMAGES = 11
+EXPECTED_EXCLUDED_IN_PLAN = 1775
+# R007 placed 11 credenza bitmaps in the plan; R009 places 6 (five along the
+# zone B wall and one in the core) plus the one inside the material key.
+EXPECTED_PLAN_IMAGES = 6
+
+# R009 WAS PLOTTED WITH LINE WEIGHTS OFF. Every one of its 81,748 paths has
+# stroke width 0 -- "one device pixel" -- where R007 carried eight plotted
+# weights (0.15 to 1.41 pt) that made walls read heavier than furniture and
+# columns heavier than walls. The geometry is the same drawing, so the
+# weights R007 plotted are restored here per layer (and per colour where a
+# layer mixes classes), measured from the R007 PDF with this same parser.
+# A path that carries its own width keeps it; this table only fills zeros.
+PLOT_WEIGHTS = {
+    ("C- COLOUMN", None): 1.41,
+    ("W-WALL", None): 0.84,
+    ("B- BEAM", None): 0.84,
+    ("P-FULLHEIGHT PARTITION", "#BF7FFF"): 0.72,   # the real room dividers
+    ("P-FULLHEIGHT PARTITION", "#FF4405"): 0.36,   # bench hatch
+    ("P-FULLHEIGHT PARTITION", "#006EDD"): 0.36,
+    ("P-FULLHEIGHT PARTITION", "#8AB85C"): 0.36,
+    ("P-FULLHEIGHT PARTITION", "#0037DD"): 0.27,
+    ("W-WINDOW", None): 0.57,
+    ("F-FURNITURE HATCH", "#FF0000"): 0.57,
+    ("F-FURNITURE HATCH", "#0037DD"): 0.27,
+    ("G-GLASS", "#00A5DD"): 0.27,
+    ("F-FURNITURE", "#DD6EDD"): 0.27,
+    ("F-FURNITURE", "#6E6EDD"): 0.27,
+    ("F-FURNITURE", "#A953A0"): 0.27,
+    ("F-LOOSE FURNITURE", None): 0.15,
+    ("AC EXH. GRILL", None): 0.15,
+    ("T-TEXT", None): 0.57,
+}
+
+
+def plot_weight(p):
+    if p.width:
+        return round(p.width, 2)
+    w = PLOT_WEIGHTS.get((p.layer, p.stroke_hex()))
+    if w is None:
+        w = PLOT_WEIGHTS.get((p.layer, None))
+    return w or 0.0
 
 # Wall-class geometry must never be collateral damage from an EXCLUDE box.
 WALL_AUDIT_CLASSES = {"W-WALL", "K-WALL", "C- COLOUMN", "K-COLS", "I-WALL"}
@@ -65,7 +121,29 @@ WALL_AUDIT_CLASSES = {"W-WALL", "K-WALL", "C- COLOUMN", "K-COLS", "I-WALL"}
 # saturation towards the application palette, with walls taking the brand navy.
 # True colour is correct and looks like a contractor's sheet; this is a booking
 # tool for a professional services firm.
+#
+# R009 is plotted colour-BY-LAYER where R007 was colour-by-object, so most of
+# the shell changed hue without changing meaning: W-WALL went from black to
+# #DD3700, C- COLOUMN to #5CB800, W-WINDOW to #FF9F7F, G-GLASS outline to
+# #00A5DD, the wall hatch to #DBDBDB, the real partitions to #BF7FFF, loose
+# furniture to #007FFF and the I-/K- layers from #595959 to #808080. Those
+# all take the SAME target their R007 colour took -- the building keeps
+# reading as it did -- which is why a texture rebuilt from R009 looks like
+# the one built from R007 rather than like a different office.
 MUTED = {
+    # R009 layer colours for what R007 drew in black
+    "#DD3700": "#1E2A5A",   # W-WALL
+    "#5CB800": "#1E2A5A",   # C- COLOUMN
+    "#FF9F7F": "#1E2A5A",   # W-WINDOW
+    "#00A5DD": "#1E2A5A",   # G-GLASS outline
+    "#DBDBDB": "#1E2A5A",   # W-WALL HATCH
+    "#BF7FFF": "#1E2A5A",   # P-FULLHEIGHT PARTITION, the real dividers
+    "#007FFF": "#1E2A5A",   # F-LOOSE FURNITURE
+    "#989898": "#1E2A5A",   # LANDSCAPE
+    "#808080": "#6B6B6B",   # the I-/K- layers and F-FURNITURE linework
+    "#BABABA": "#6B6B6B",   # H-HATCH1
+    "#A953A0": "#9A6E96",   # F-FURNITURE, the B.P.G run
+    # R007 object colours, unchanged on R009
     "#FF0000": "#C4453C",   # rapid-rail workstation hatch
     "#0037DD": "#3F63B8",   # screen-only workstation hatch
     "#4A9500": "#6E9155",   # foldable table hatch
@@ -80,7 +158,7 @@ MUTED = {
     "#009595": "#4F8C8C",
     "#FF00FF": "#C08FC0",   # setting-out grid
     "#595959": "#6B6B6B",
-    "#000000": "#1E2A5A",   # walls take the brand navy
+    "#000000": "#1E2A5A",   # walls took the brand navy on R007
 }
 
 
@@ -140,7 +218,7 @@ def build_svg(paths, images, assets, mask, raster_width,
         if palette == "muted":
             stroke = MUTED.get(stroke, stroke)
             fill = MUTED.get(fill, fill)
-        width = round(p.width, 2) or hairline
+        width = plot_weight(p) or hairline
         # lineCap is round on every path in this drawing; lineJoin is mixed.
         # Rounding a miter join visibly softens the corners of the 1.41pt wall
         # lines, so it is carried per bucket rather than flattened.

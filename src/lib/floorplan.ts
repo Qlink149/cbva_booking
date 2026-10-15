@@ -120,8 +120,8 @@ export function zoneSeatBounds(
   const points = seats
     .filter((s) => s.zone === code)
     .map((s) => [s.planX, s.planY] as const);
-  // Zone B has no bookable seats at all — its "zone view" is the room labels,
-  // and there is nothing to fit tightly to, so fall back to the hull bbox.
+  // A zone with no seats (none today; zone B had none under R007) has nothing
+  // to fit tightly to, so fall back to the hull bbox.
   if (points.length === 0) return zoneBounds(code);
   return boundsOf(points, pad);
 }

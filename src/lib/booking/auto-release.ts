@@ -110,7 +110,7 @@ export interface AutoReleaseOptions {
    * `settings.auto_release_batch_cap`.
    *
    * A single run legitimately settling more bookings than the floor has desks
-   * is not a real workload — with 93 bookable desks and two slots, a cron that
+   * is not a real workload — with 110 bookable desks and two slots, a cron that
    * has been down for a whole day settles at most ~186 in one transition. The
    * default of 250 clears that with headroom and trips on the 577-row incident.
    */

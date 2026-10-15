@@ -14,6 +14,7 @@ import {
 import { GLYPH_ORDER } from "@/components/floor-plan/three/seat-materials";
 import { wallSegmentCount } from "@/components/floor-plan/three/wall-geometry";
 import { SEAT_STATUSES } from "@/components/seat/seat-status";
+import { TOTAL_SEATS } from "@/lib/seed-data/inventory";
 import {
   FULL_FLOOR_BOUNDS,
   PLAN_BOUNDS,
@@ -73,7 +74,7 @@ describe("the plan-to-world transform", () => {
     // 1285 x 970 plan units at 70.5556 mm each.
     expect(FLOOR_SIZE.width).toBeCloseTo(90.66, 1);
     expect(FLOOR_SIZE.depth).toBeCloseTo(68.44, 1);
-    // A 141-desk floor of roughly 6,200 m2 gross is plausible for a Mumbai
+    // A 158-desk floor of roughly 6,200 m2 gross is plausible for a Mumbai
     // office plate; an order of magnitude out either way would mean the scale
     // recovery in the CAD build had gone wrong.
     expect(FLOOR_SIZE.width * FLOOR_SIZE.depth).toBeGreaterThan(3000);
@@ -166,8 +167,8 @@ describe("the seat status vocabulary reaching three.js", () => {
 });
 
 describe("the seats the 3D view places", () => {
-  it("places all 141 within the floor plane", () => {
-    expect(floorplanSeatAnchors.seats).toHaveLength(141);
+  it("places every desk within the floor plane", () => {
+    expect(floorplanSeatAnchors.seats).toHaveLength(TOTAL_SEATS);
     for (const seat of floorplanSeatAnchors.seats) {
       const [x, , z] = planToWorld(seat.planX, seat.planY);
       expect(Math.abs(x)).toBeLessThan(FLOOR_SIZE.width / 2 + 1);
@@ -182,12 +183,11 @@ describe("the seats the 3D view places", () => {
    * zoom, so `/floor` has always drawn C7-04 and PA-15 on top of each other and
    * nobody could tell. Two 1.3 m desk MESHES 6 cm apart are unmistakable.
    *
-   * Every offending pair involves at least one of the eleven INTERPOLATED
-   * anchors — the desks Phase 2 could not detect and spaced by dividing the bay
-   * rather than by the measured 23-unit pitch. The detected geometry, which is
-   * 130 of the 141, is clean. So the two populations are asserted separately:
-   * the detected anchors must never intersect, and the interpolated ones must
-   * not get any worse than the nine pairs already known. See ASSUMPTIONS A24.
+   * Under R007 every offending pair involved one of the eleven INTERPOLATED
+   * anchors — the desks Phase 2 could not detect. Under R009 (ADR-049) every
+   * desk is numbered on the plan and snaps onto its own chair block, so there
+   * are no interpolated anchors and no pair may intersect at all. A24 is
+   * closed; this is what keeps it closed.
    */
   const worldPairs = () => {
     const points = floorplanSeatAnchors.seats.map((s) => ({
@@ -209,20 +209,15 @@ describe("the seats the 3D view places", () => {
     const closest = worldPairs()
       .filter(({ a, b }) => a.source === "detected" && b.source === "detected")
       .reduce((min, { d }) => Math.min(min, d), Infinity);
-    expect(closest).toBeCloseTo(1.36, 1);
+    // 19.19 plan units between desks 89 and 90, at 70.5556 mm each.
+    expect(closest).toBeCloseTo(1.35, 1);
     expect(closest).toBeGreaterThan(DIMENSIONS.deskWidth);
   });
 
-  it("holds the interpolated anchors to the overlaps already known", () => {
+  it("has no interpolated anchors and no overlapping pair", () => {
+    expect(floorplanSeatAnchors.seats.filter((s) => s.source === "interpolated")).toEqual([]);
     const tight = worldPairs().filter(({ d }) => d < DIMENSIONS.deskWidth);
-    // Every one of them involves an interpolated anchor. If a DETECTED pair
-    // ever turns up here, the drawing or the detection changed.
-    for (const { a, b } of tight) {
-      expect([a.source, b.source]).toContain("interpolated");
-    }
-    // Fifteen pairs, spanning the eleven interpolated anchors. The worst is
-    // C7-04 at 6 cm from PA-15 — effectively the same desk drawn twice.
-    expect(tight.length).toBeLessThanOrEqual(15);
+    expect(tight.map(({ a, b, d }) => `${a.code} vs ${b.code} ${d.toFixed(2)} m`)).toEqual([]);
   });
 
   it("frames the whole floor from bounds that contain every seat", () => {

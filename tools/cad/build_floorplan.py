@@ -23,6 +23,24 @@ What the layers turned out to mean, measured rather than assumed:
 Seat detection keys off the chair, not the desk, because there is exactly one
 chair per seat and chairs do not touch each other, whereas desks in a 9-pax bay
 are drawn as one continuous run and refuse to segment.
+
+R009 (ADR-049, generator 5). The architect re-issued the layout on 17-06-2025
+with every desk NUMBERED 1-158 on the plan and every bay tagged with a
+circled letter A-T. That changes what the drawing is evidence of. Under R007
+a seat was inferred -- a chair block, assigned to the nearest bay tag under a
+capacity read off a PAX annotation, interpolated where the count came up
+short -- and eleven of 141 could not be placed at all. Under R009 a seat is
+STATED: the number is the architect's own desk identity, its position is the
+architect's own label, and the chair block beside it supplies the facing. So
+the number labels now drive placement and the chair detector only snaps
+them; the bay tags and PAX annotations R007 relied on are gone from the
+sheet, replaced by the letters and the numbers, and the PAX schedule in the
+title block (which still uses the old bay names) is read as a cross-check
+rather than as the source.
+
+R009 is an A3 layout where R007 was an A2 model-space plot. cadparse fits it
+onto the R007 frame, so every coordinate here is still in the frame the rest
+of the product was built on.
 """
 import argparse
 import collections
@@ -40,10 +58,10 @@ import texture  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-PDF = os.path.join(HERE, "09 -R8 - NB -FURNITURE LAYOUT - 12-06-2025.pdf")
+PDF = os.path.join(HERE, "CBVA - FURNITURE LAYOUT - R009 - 17-06-2025.pdf")
 OUT = os.path.join(ROOT, "src", "data", "floorplan")
 
-GENERATOR_VERSION = 4
+GENERATOR_VERSION = 5
 
 # The shell. I-DOOR is deliberately absent: those are the swing arcs, and they
 # are noise in 2D and wrong in 3D.
@@ -95,10 +113,29 @@ GLAZING_LAYERS = {"G-GLASS", "W-WINDOW"}
 # Scoped to P-FULLHEIGHT PARTITION alone. I-PART-FULL is 12 paths stroked
 # #595959, all of them real partition, and a blanket black test would drop
 # them -- the colour key belongs to the one layer that carries a key.
+#
+# R009 re-keyed the layer. It is plotted colour-by-layer, every width is 0,
+# and the 6,444 paths became 997 as the hatch segments were joined into
+# polylines. Measured on the calibrated sheet against R007's 198 black
+# partition paths:
+#
+#     #BF7FFF    333 paths  len 10,358   70% of vertices ON the R007 black
+#                                        partitions, 3% on the bench fill
+#     #FF4405     53 paths  len  6,122   83% on the bench fill (and painted
+#                                        as fills, not strokes)
+#     #0037DD    482 paths  len  1,474   100% bench fill
+#     #006EDD    101 paths  len    564   51% bench fill
+#     #8AB85C     28 paths  len    398   98% bench fill (the one symbol)
+#
+# So the real dividers are #BF7FFF on R009 and black on R007. Both are kept:
+# the colour is the key, and the key is per sheet.
+PARTITION_STROKES = {"#000000", "#BF7FFF"}
+
+
 def real_partitions(path):
     if path.layer != "P-FULLHEIGHT PARTITION":
         return True
-    return path.stroke_hex() == "#000000"
+    return path.stroke_hex() in PARTITION_STROKES
 
 
 WALL_CLASSES = (
@@ -142,19 +179,89 @@ FURNITURE_CLASSES = (
     ("modular", {"I-FURN-MODU"}, 100),
 )
 
-BAY_RE = re.compile(r"^(A[12]|C[1-7]|D[1-8])$")
 PAX_RE = re.compile(r"^(\d+)\s*PAX\.?$", re.I)
+DESK_RE = re.compile(r"^\d{1,3}$")
+LETTER_RE = re.compile(r"^[A-T]$")
 
-# The bay schedule the Phase 1 seed already encodes. Kept here so the build can
-# assert the drawing and the seed still agree; if they ever diverge the build
-# fails rather than silently preferring one of them.
+# THE BAY SCHEDULE, R009. Twenty bays, each a circled letter on the plan, in
+# the order the architect numbered the desks: A holds desks 1-4, B 5-8, C
+# 9-25 and so on through T, 143-158. The counts are what the plan shows --
+# exactly that many numbered desks sit beside each letter, verified by the
+# build below -- and they are what src/lib/seed-data/inventory.ts encodes, so
+# the two are asserted against each other rather than one trusted.
+#
+# The title block still lists the bays under the R007 names (A1, D1-D8,
+# PASSAGE, C1-C7, B1, B2) and sums them to 158. Those names are not on the
+# plan any more; the letters are. The plan is what a person standing on the
+# floor can see, so the letters are the bay vocabulary (ASSUMPTIONS A32).
 SCHEDULE = {
-    "A1": 4, "A2": 4,
-    "C1": 6, "C2": 4, "C3": 9, "C4": 9, "C5": 9, "C6": 9, "C7": 4, "PA": 16,
-    "D1": 9, "D2": 9, "D3": 9, "D4": 9, "D5": 1, "D6": 4, "D7": 4, "D8": 4,
-    "PD": 18,
+    "A": 4, "B": 4,
+    "C": 17,
+    "D": 6, "E": 4, "F": 9, "G": 9, "H": 9, "I": 9, "J": 4,
+    "K": 9, "L": 9, "M": 9, "N": 9, "O": 1, "P": 4, "Q": 4, "R": 4,
+    "S": 18, "T": 16,
 }
-BAY_ZONE = {b: {"PA": "C", "PD": "D"}.get(b, b[0]) for b in SCHEDULE}
+
+# First desk number of each bay: the numbering is contiguous in schedule
+# order, which is the property the build checks before it believes it.
+BAY_FIRST = {}
+_n = 1
+for _bay, _count in SCHEDULE.items():
+    BAY_FIRST[_bay] = _n
+    _n += _count
+del _n, _bay, _count
+
+# Which wing each bay sits in. The wings keep the R007 zone letters A-D
+# (zone A: cabins and the meeting rooms; B: the former flexible room, now 17
+# workstations; C and D: the two open wings) because the whole product keys
+# on them. The bay LETTERS are the architect's and the ZONE letters are the
+# architect's too, from a different revision -- bay C is in zone B. That is
+# awkward to read and correct to keep: renaming either would mean inventing
+# a label the drawing does not carry.
+BAY_ZONE = {}
+for _bay in SCHEDULE:
+    if _bay in ("A", "B"):
+        BAY_ZONE[_bay] = "A"
+    elif _bay == "C":
+        BAY_ZONE[_bay] = "B"
+    elif _bay in ("D", "E", "F", "G", "H", "I", "J", "T"):
+        BAY_ZONE[_bay] = "C"
+    else:
+        BAY_ZONE[_bay] = "D"
+del _bay
+
+# A desk label is snapped to the chair block drawn for it when one lies
+# within this many plan units (22 units = 1.55 m). Measured on R009: 150 of
+# the 158 labels have a chair within 10 units; the eight executive desks in
+# bays A and B have theirs 17-20 units away, across a wider desk; no label is
+# further than 20.3 from a chair, and no chair is nearest to two labels.
+SNAP_UNITS = 22.0
+
+# R009 dropped the four 52 pt zone letters R007 set on the drawing, which is
+# what `build_zones` aimed its wedges at. These are those letters' positions
+# as the R007 build recorded them in zones.json, retained so the wings keep
+# exactly the outlines they had. Used only when the sheet carries no letters.
+ZONE_ANCHORS_R007 = {
+    "A": (186.77, 995.40),
+    "B": (195.11, 205.83),
+    "C": (1291.46, 218.16),
+    "D": (1301.57, 995.40),
+}
+
+# R009 also dropped zone A's room tags (A3-A9) and their PAX annotations.
+# The rooms themselves are unchanged -- the shell is identical and the
+# boardroom chairs are still drawn -- so the schedule R007 stated is carried
+# forward verbatim, flagged in the report as carried rather than read
+# (ASSUMPTIONS A33). Used only when the sheet carries no room tags.
+ROOMS_R007 = [
+    {"bayCode": "A3", "pax": 25, "planX": 386.09, "planY": 767.46},
+    {"bayCode": "A4", "pax": None, "planX": 223.13, "planY": 889.47},
+    {"bayCode": "A5", "pax": None, "planX": 112.25, "planY": 861.57},
+    {"bayCode": "A6", "pax": 5, "planX": 188.84, "planY": 692.01},
+    {"bayCode": "A7", "pax": 5, "planX": 242.36, "planY": 638.49},
+    {"bayCode": "A8", "pax": 7, "planX": 285.32, "planY": 595.59},
+    {"bayCode": "A9", "pax": 10, "planX": 443.03, "planY": 625.65},
+]
 
 
 # --------------------------------------------------------------------------
@@ -448,53 +555,140 @@ def find_chairs(paths, mask=None):
     return dedup
 
 
-def bay_anchors(spans):
-    """Bay tag -> (x, y), plus the expected count read off the PAX annotation."""
-    spans = [s for s in spans if s.in_plan]
-    tags = {}
+def desk_labels(spans):
+    """
+    The architect's desk numbers: every `1`..`158` set on the plan, once each.
+
+    They sit on layer 0 and F-FURNITURE TEXT at 2.8 pt. Anything else that is
+    a bare integer inside the plan box -- there is nothing on R009, and the
+    build fails rather than guesses if a revision adds some -- would collide
+    with a desk number, so the check is for the exact set, not a count.
+    """
+    labels = {}
+    dup = []
     for s in spans:
-        if BAY_RE.match(s.text) and s.layer == "F-FURNITURE TEXT":
-            tags[s.text] = (s.x, s.y)
+        if not s.in_plan or s.layer not in ("0", "F-FURNITURE TEXT"):
+            continue
+        t = s.text.strip()
+        if not DESK_RE.match(t):
+            continue
+        n = int(t)
+        if n in labels:
+            dup.append(n)
+        labels[n] = (s.x, s.y)
+    want = set(range(1, sum(SCHEDULE.values()) + 1))
+    if dup or set(labels) != want:
+        raise SystemExit(
+            f"desk number labels do not read 1..{len(want)} exactly once: "
+            f"missing {sorted(want - set(labels))[:10]}, "
+            f"extra {sorted(set(labels) - want)[:10]}, duplicated {sorted(set(dup))[:10]}"
+        )
+    return labels
 
-    pax = []
+
+def bay_letters(spans):
+    """The circled bay letters A-T on F-FURNITURE TEXT, exactly the schedule's."""
+    found = {}
     for s in spans:
-        m = PAX_RE.match(s.text)
-        if m:
-            pax.append((int(m.group(1)), s.x, s.y))
+        if s.in_plan and s.layer == "F-FURNITURE TEXT" and LETTER_RE.match(s.text.strip()):
+            if s.text.strip() in found:
+                raise SystemExit(f"bay letter {s.text.strip()} appears twice on the plan")
+            found[s.text.strip()] = (s.x, s.y)
+    if set(found) != set(SCHEDULE):
+        raise SystemExit(
+            f"bay letters on the plan {sorted(found)} are not the schedule's "
+            f"{sorted(SCHEDULE)}"
+        )
+    return found
 
-    expected, used = {}, set()
-    for tag, (tx, ty) in tags.items():
-        # Zone A is cabins and meeting rooms. The PAX labels over there count
-        # conference seats, not desks, so pairing them to A1/A2 would import a
-        # meeting room's capacity as a bay size. Leave them unannotated and let
-        # the report say so.
-        if tag.startswith("A"):
+
+def check_numbering(labels, letters):
+    """
+    The build's one inference, and its proof.
+
+    Desk numbers are assigned to bays by contiguous range in schedule order
+    (A = 1-4, B = 5-8, ...). That is a claim about how the architect counted,
+    so it is checked against the plan: the centroid of every range must be
+    nearer its own bay letter than any other letter. On R009 the nearest other
+    letter is at least 60 units further in every case; a revision that
+    renumbers will fail here, loudly, with the bay named.
+    """
+    for bay, first in BAY_FIRST.items():
+        rng = range(first, first + SCHEDULE[bay])
+        cx = sum(labels[n][0] for n in rng) / len(rng)
+        cy = sum(labels[n][1] for n in rng) / len(rng)
+        ranked = sorted(letters, key=lambda L: math.hypot(letters[L][0] - cx, letters[L][1] - cy))
+        if ranked[0] != bay:
+            raise SystemExit(
+                f"desks {rng.start}-{rng.stop - 1} were expected to be bay {bay} but "
+                f"their centroid is nearest letter {ranked[0]}; the numbering is "
+                f"not contiguous in schedule order any more"
+            )
+
+
+def snap_to_chairs(labels, chairs, max_dist=SNAP_UNITS):
+    """
+    Pair each desk label with the chair block drawn for it: globally nearest
+    first, each chair claimed once, within `max_dist`. Returns {n: chair_index}.
+    Labels left unpaired are placed on the label itself, and reported.
+    """
+    pairs = []
+    for n, (lx, ly) in labels.items():
+        for ci, c in enumerate(chairs):
+            d = math.hypot(c["x"] - lx, c["y"] - ly)
+            if d <= max_dist:
+                pairs.append((d, n, ci))
+    pairs.sort()
+    taken, used = {}, set()
+    for d, n, ci in pairs:
+        if n in taken or ci in used:
             continue
-        best, bi = None, None
-        for i, (n, px, py) in enumerate(pax):
-            if i in used:
-                continue
-            d = math.hypot(px - tx, py - ty)
-            if d < 45.0 and (best is None or d < best):
-                best, bi = d, i
-        if bi is not None:
-            used.add(bi)
-            expected[tag] = pax[bi][0]
+        taken[n] = ci
+        used.add(ci)
+    return taken
 
-    # D5 is the management cabin: a bay tag with no PAX annotation, one seat.
-    if "D5" in tags and "D5" not in expected:
-        expected["D5"] = 1
 
-    # The two passage runs are annotated but carry no bay tag of their own.
-    for i, (n, px, py) in enumerate(pax):
-        if i in used or n not in (16, 18):
-            continue
-        name = "PA" if n == 16 else "PD"
-        tags[name] = (px, py)
-        expected[name] = n
-        used.add(i)
-
-    return tags, expected
+def place_seats(labels, chairs):
+    """
+    One seat per desk number, in number order. Position and facing come from
+    the snapped chair block; a label with no chair within SNAP_UNITS keeps the
+    label's own position, takes the facing of its nearest bay-mate, and is
+    marked `interpolated` so the editor surfaces it.
+    """
+    snapped = snap_to_chairs(labels, chairs)
+    seats, report = [], []
+    for bay, first in BAY_FIRST.items():
+        rng = range(first, first + SCHEDULE[bay])
+        facings = [chairs[snapped[n]]["facing"] for n in rng if n in snapped]
+        detected = made = 0
+        for n in rng:
+            if n in snapped:
+                c = chairs[snapped[n]]
+                x, y, facing, source = c["x"], c["y"], c["facing"], "detected"
+                detected += 1
+            else:
+                x, y = labels[n]
+                facing = facings[0] if facings else 0.0
+                source = "interpolated"
+                made += 1
+            seats.append({
+                "seatCode": str(n),
+                "bay": bay,
+                "zone": BAY_ZONE[bay],
+                "planX": round(x, 2),
+                "planY": round(y, 2),
+                "rotationDeg": int(round(facing)) % 360,
+                "source": source,
+            })
+        report.append({
+            "bay": bay, "zone": BAY_ZONE[bay], "expected": SCHEDULE[bay],
+            # Every desk in the bay is numbered on the plan, so the drawing
+            # states the count directly; there is no PAX annotation to pair.
+            "drawingPax": SCHEDULE[bay],
+            "detected": detected, "placed": len(rng),
+            "interpolated": made, "surplusDropped": 0,
+        })
+    return seats, report, set(snapped.values())
 
 
 ROOM_TAG_RE = re.compile(r"^A[3-9]$")
@@ -502,22 +696,13 @@ ROOM_TAG_RE = re.compile(r"^A[3-9]$")
 
 def room_labels(spans):
     """
-    Zone A's room tags and their PAX, which `bay_anchors` deliberately throws
-    away.
+    Zone A's room tags and their PAX, read off the sheet when it carries them.
 
-    That guard is right: pairing a zone-A PAX to a bay would import a meeting
-    room's capacity as a desk count, and A3's 25 would become 25 bookable
-    desks. But it throws away the drawing's own room schedule with it, and the
-    3D view has no way to say why a whole wing has no desks in it.
-
-    So this reads the same spans and keeps them separately. It NEVER feeds seat
-    detection. Every tag pairs to a PAX annotation within 33 plan units:
-
-        A3 -> 25 (18.6)   A9 -> 10 (32.2)   A8 -> 7 (25.9)
-        A7 ->  5 (25.3)   A6 ->  5 (25.9)
-
-    A4 (storage) and A5 (lounge) carry no PAX, correctly, and come back with
-    pax = None.
+    R007 did: every tag paired to a PAX annotation within 33 plan units
+    (A3 -> 25, A9 -> 10, A8 -> 7, A7 -> 5, A6 -> 5; A4 and A5 none). R009 does
+    not -- the tags and the room PAX were dropped with the rest of the
+    annotation -- so this returns None and the caller falls back to ROOMS_R007.
+    Never feeds seat detection either way.
     """
     spans = [s for s in spans if s.in_plan]
     tags = {}
@@ -525,6 +710,8 @@ def room_labels(spans):
         t = s.text.strip()
         if ROOM_TAG_RE.match(t) and s.layer == "F-FURNITURE TEXT":
             tags[t] = (s.x, s.y)
+    if not tags:
+        return None
 
     pax = []
     for s in spans:
@@ -551,50 +738,20 @@ def room_labels(spans):
     return out
 
 
-def workstation_pax(spans):
-    """
-    The `8 PAX` on the A1/A2 workstation run.
-
-    The build has claimed since Phase 2 that A1 and A2 carry no PAX label and
-    rest on the Phase 1 assumption -- `baysWithoutDrawingPax: ["A1","A2"]`,
-    `seatsConfirmedByDrawingPax: 133`. That is wrong, and it is wrong for the
-    same reason the room schedule was missing: `bay_anchors` skips EVERY tag
-    beginning with A, so it never saw the one zone-A annotation that IS a desk
-    count. It sits 19.1 units from the A2 tag and reads 8, which is exactly
-    A1 + A2 in the bay schedule.
-
-    Reported, not applied. It confirms the pair's total of 8; how those 8 split
-    between A1 and A2 is still ours (ASSUMPTIONS A2/A12), so nothing downstream
-    changes -- only the claim about what the drawing confirms.
-    """
-    spans = [s for s in spans if s.in_plan]
-    a2 = next(((s.x, s.y) for s in spans
-               if s.text.strip() == "A2" and s.layer == "F-FURNITURE TEXT"), None)
-    if a2 is None:
-        return None
-    for s in spans:
-        m = PAX_RE.match(s.text.strip())
-        if m and math.hypot(s.x - a2[0], s.y - a2[1]) < 35.0:
-            return int(m.group(1))
-    return None
-
-
 SHEET_TOTAL_RE = re.compile(r"TOTAL WORKING PEOPLE", re.I)
 PAX_ONLY_RE = re.compile(r"^(\d+)\s*PAX\.?$", re.I)
+SCHEDULE_ROW_RE = re.compile(r"^(\d+)\.\s*(.+?)\s*=\s*(?:(\d+)\s*PAX)?\.?$", re.I)
 
 
 def sheet_headcount(spans):
     """
     The drawing's own headline figure, from the title block:
 
-        TOTAL WORKING PEOPLE =   141 PAX
+        TOTAL WORKING PEOPLE =   158 PAX
         NOTE: CONFERENCE AREA AND CAFETERIA NOT INCLUDED.
 
-    This is a third, independent confirmation of 141 -- the first being the
-    per-bay PAX annotations summing to it, the second the furniture schedule.
-    It also states in the client's own words why the boardroom and conference
-    rooms are not in the count, which is the question anyone at CBVA would ask
-    first on seeing zone A drawn with no seats.
+    An independent confirmation of the schedule total, in the client's own
+    words, with the reason the boardroom and conference rooms are not in it.
     """
     label = next((s for s in spans if SHEET_TOTAL_RE.search(s.text)), None)
     if label is None:
@@ -614,91 +771,35 @@ def sheet_headcount(spans):
     return total, note
 
 
-def assign(chairs, anchors, capacity, max_dist=130.0):
+def sheet_schedule(spans):
     """
-    Capacity-constrained nearest assignment. Score every (chair, bay) pair,
-    sort globally by distance and take greedily while both the chair is free
-    and the bay has room. Doing it globally rather than per-chair stops one bay
-    tag acting as a magnet for a whole wing.
+    The bay schedule as the title block states it: `N. NAME = K PAX` rows,
+    with the figure either in the same text run or in a second run on the
+    same baseline. On R009 the rows above TOTAL WORKING PEOPLE still use the
+    R007 bay names (A1, D1-D8, PASSAGE, C1-C7, B1, B2); the rows below it are
+    the headcount by grade. Both are returned, in sheet order, so the report
+    can show that the sheet's own arithmetic reaches the same 158 the plan's
+    numbered desks do -- by a different grouping (ASSUMPTIONS A32).
     """
-    pairs = []
-    for ci, c in enumerate(chairs):
-        for bay, (ax, ay) in anchors.items():
-            d = math.hypot(c["x"] - ax, c["y"] - ay)
-            if d <= max_dist:
-                pairs.append((d, ci, bay))
-    pairs.sort()
-    taken = {}
-    room = dict(capacity)
-    for d, ci, bay in pairs:
-        if ci in taken or room.get(bay, 0) <= 0:
+    rows = []
+    off_plan = [s for s in spans if not s.in_plan and s.layer == "F-FURNITURE TEXT"]
+    for s in off_plan:
+        m = SCHEDULE_ROW_RE.match(s.text.strip())
+        if not m:
             continue
-        taken[ci] = bay
-        room[bay] -= 1
-    by_bay = collections.defaultdict(list)
-    for ci, bay in taken.items():
-        by_bay[bay].append(chairs[ci])
-    return by_bay, [c for i, c in enumerate(chairs) if i not in taken]
-
-
-def order_bay(members, anchor):
-    """
-    Stable reading order within a bay: along the run's own principal axis,
-    starting from the end nearest the bay tag, tie-broken across the run. This
-    is the order somebody walking the bay would count in.
-    """
-    if len(members) <= 1:
-        return members
-    n = len(members)
-    mx = sum(m["x"] for m in members) / n
-    my = sum(m["y"] for m in members) / n
-    sxx = sum((m["x"] - mx) ** 2 for m in members)
-    syy = sum((m["y"] - my) ** 2 for m in members)
-    sxy = sum((m["x"] - mx) * (m["y"] - my) for m in members)
-    theta = 0.5 * math.atan2(2 * sxy, sxx - syy)
-    ux, uy = math.cos(theta), math.sin(theta)
-    if (members[0]["x"] - mx) * ux + (members[0]["y"] - my) * uy < 0:
-        pass
-    # orient the axis so it runs away from the bay tag
-    ax, ay = anchor
-    if (mx - ax) * ux + (my - ay) * uy < 0:
-        ux, uy = -ux, -uy
-    vx, vy = -uy, ux
-
-    def keyf(m):
-        along = (m["x"] - mx) * ux + (m["y"] - my) * uy
-        across = (m["x"] - mx) * vx + (m["y"] - my) * vy
-        return (round(across / 14.0), along)
-
-    return sorted(members, key=keyf)
-
-
-def interpolate(members, want, anchor):
-    """
-    Extend a short run along its own axis rather than dropping seats. Marked
-    'interpolated' in the output so the editor can surface exactly these.
-    """
-    made = []
-    if not members:
-        ax, ay = anchor
-        for i in range(want):
-            made.append({"x": ax + (i % 4) * 16.0, "y": ay + (i // 4) * 16.0,
-                         "facing": 0.0, "interpolated": True})
-        return made
-    if len(members) == 1:
-        base = members[0]
-        for i in range(want - 1):
-            made.append({"x": base["x"] + (i + 1) * 16.0, "y": base["y"],
-                         "facing": base["facing"], "interpolated": True})
-        return made
-    first, last = members[0], members[-1]
-    n = len(members) - 1
-    sx = (last["x"] - first["x"]) / n
-    sy = (last["y"] - first["y"]) / n
-    for i in range(want - len(members)):
-        made.append({"x": last["x"] + sx * (i + 1), "y": last["y"] + sy * (i + 1),
-                     "facing": last["facing"], "interpolated": True})
-    return made
+        value = m.group(3)
+        if value is None:
+            same_line = [q for q in off_plan
+                         if abs(q.y - s.y) < 2.0 and q.x > s.x
+                         and PAX_ONLY_RE.match(q.text.strip())]
+            if same_line:
+                q = min(same_line, key=lambda q: q.x)
+                value = PAX_ONLY_RE.match(q.text.strip()).group(1)
+        rows.append({"label": m.group(2).strip(),
+                     "pax": int(value) if value is not None else None,
+                     "y": s.y})
+    rows.sort(key=lambda r: r["y"])
+    return [{"label": r["label"], "pax": r["pax"]} for r in rows]
 
 
 # --------------------------------------------------------------------------
@@ -748,11 +849,19 @@ def build_zones(mask, spans, seats):
     building interior rather than from the raw linework, and split into
     angular wedges aimed at the four 52pt zone letters the architect set on
     the drawing -- so the split is the architect's, not ours.
+
+    R009 carries no zone letters, so the wedges aim at the positions R007's
+    letters had (ZONE_ANCHORS_R007), which keeps every wing outline where it
+    was. A sheet that DOES carry four big letters wins over the constants.
     """
     letters = {}
     for s_ in (s for s in spans if s.in_plan):
         if s_.text in ("A", "B", "C", "D") and s_.size > 30:
             letters[s_.text] = (s_.x, s_.y)
+    if not letters:
+        letters = dict(ZONE_ANCHORS_R007)
+        print("  zone letters: none on this sheet; wedges aimed at the R007 "
+              "anchors", file=sys.stderr)
     if len(letters) != 4:
         raise SystemExit(f"expected four zone letters, found {sorted(letters)}")
 
@@ -906,65 +1015,58 @@ def main():
     furniture = build_furniture(paths, mask)
     print(f"  furniture: {len(furniture)} boxes", file=sys.stderr)
 
-    # ---- anchors and the schedule cross-check
-    anchors, expected = bay_anchors(spans)
-    missing = [b for b in SCHEDULE if b not in anchors]
-    if missing:
-        raise SystemExit(f"bay tags not found in the drawing: {missing}")
-    drift = {b: {"drawingPax": expected[b], "schedule": SCHEDULE[b]}
-             for b in SCHEDULE
-             if b in expected and expected[b] != SCHEDULE[b]}
-    unconfirmed = sorted(b for b in SCHEDULE if b not in expected)
+    # ---- the architect's desk numbers and bay letters
+    labels = desk_labels(spans)
+    letters = bay_letters(spans)
+    check_numbering(labels, letters)
+    print(f"  desk numbers 1-{len(labels)} and bay letters "
+          f"{''.join(sorted(letters))} read off the plan", file=sys.stderr)
 
-    # ---- the sheet's own total
+    # ---- the sheet's own total, and its schedule under the old bay names
     sheet_total, sheet_note = sheet_headcount(spans)
     if sheet_total is not None and sheet_total != sum(SCHEDULE.values()):
         raise SystemExit(
             f"the drawing's title block says {sheet_total} working people but "
             f"the bay schedule sums to {sum(SCHEDULE.values())}"
         )
+    schedule_rows = sheet_schedule(spans)
+    # Rows above the total are bays; the grade headcount below it starts
+    # again at "1. PARTNER". Both groups must reach the plan's total on their
+    # own, or the sheet disagrees with itself.
+    bay_rows, grade_rows, seen_total = [], [], False
+    for row in schedule_rows:
+        if row["label"].upper() == "PARTNER":
+            seen_total = True
+        (grade_rows if seen_total else bay_rows).append(row)
+    for name, rows in (("bay", bay_rows), ("grade", grade_rows)):
+        total = sum(r["pax"] or 0 for r in rows)
+        if rows and total != sum(SCHEDULE.values()):
+            raise SystemExit(
+                f"the title block's {name} schedule sums to {total}, not "
+                f"{sum(SCHEDULE.values())}: {rows}"
+            )
+    print(f"  title block: {len(bay_rows)} bay rows and {len(grade_rows)} grade "
+          f"rows, both summing to {sheet_total}", file=sys.stderr)
 
     # ---- zone A's room schedule, kept apart from seat detection
     rooms = room_labels(spans)
-    ws_pax = workstation_pax(spans)
+    rooms_from_sheet = rooms is not None
+    if rooms is None:
+        rooms = [dict(r) for r in ROOMS_R007]
+        print("  zone A rooms: no tags on this sheet; carrying the R007 "
+              "schedule forward (A33)", file=sys.stderr)
     print("  zone A rooms: " + ", ".join(
         f"{r['bayCode']}={r['pax'] if r['pax'] is not None else '-'}" for r in rooms),
         file=sys.stderr)
-    print(f"  A1+A2 workstation run PAX annotation: {ws_pax}", file=sys.stderr)
 
-    # ---- chairs
+    # ---- chairs, and the desks snapped onto them
     chairs = find_chairs(paths, mask)
     print(f"  chair blocks: {len(chairs)}", file=sys.stderr)
 
-    by_bay, unassigned = assign(chairs, anchors, SCHEDULE)
-
-    seats, report = [], []
-    for bay in SCHEDULE:
-        want = SCHEDULE[bay]
-        members = order_bay(by_bay.get(bay, []), anchors[bay])
-        detected = len(members)
-        surplus = 0
-        if detected > want:
-            surplus = detected - want
-            members = members[:want]
-        made = interpolate(members, want, anchors[bay]) if len(members) < want else []
-        members = members + made
-        for i, m in enumerate(members):
-            seats.append({
-                "seatCode": f"{bay}-{i + 1:02d}",
-                "bay": bay,
-                "zone": BAY_ZONE[bay],
-                "planX": round(m["x"], 2),
-                "planY": round(m["y"], 2),
-                "rotationDeg": int(round(m.get("facing", 0.0))) % 360,
-                "source": "interpolated" if m.get("interpolated") else "detected",
-            })
-        report.append({
-            "bay": bay, "zone": BAY_ZONE[bay], "expected": want,
-            "drawingPax": expected.get(bay),
-            "detected": detected, "placed": len(members),
-            "interpolated": len(made), "surplusDropped": surplus,
-        })
+    seats, report, used_chairs = place_seats(labels, chairs)
+    unassigned = [c for i, c in enumerate(chairs) if i not in used_chairs]
+    drift = {}
+    unconfirmed = []
 
     # ---- hand corrections outrank the drawing
     #
@@ -1022,16 +1124,17 @@ def main():
         seats_by_zone[s["zone"]] += 1
     zones, centre = build_zones(mask, spans, seats)
 
-    # Chairs the assignment did not claim, counted per zone against the real
-    # wing polygons. Most are meeting room and lounge seating, which is why
-    # this is broken out by zone rather than reported as one number: zone A's
-    # surplus is explained by its 25/10/8-pax rooms and its reception lounge,
-    # and zone B's is not explained by anything in the drawing.
+    # Chairs no desk snapped onto, counted per zone against the real wing
+    # polygons. Most are meeting room and lounge seating, which is why this is
+    # broken out by zone rather than reported as one number: zone A's surplus
+    # is its 25/10/7/5/5-pax rooms and the reception lounge; zone B's is the
+    # modular lounge seating beside its 17 numbered workstations.
     unassigned_by_zone = collections.Counter()
     for c in unassigned:
         code = zone_containing(zones, c["x"], c["y"])
         unassigned_by_zone[code or "outside"] += 1
     zone_b_chairs = unassigned_by_zone.get("B", 0)
+    zone_b_expected = sum(n for b, n in SCHEDULE.items() if BAY_ZONE[b] == "B")
 
     mm_per_unit, scale_note = derive_scale(chairs)
 
@@ -1088,11 +1191,17 @@ def main():
         "sheetExclusionNote": sheet_note,
         "scheduleDrift": drift,
         "baysWithoutDrawingPax": unconfirmed,
-        "workstationRunPax": ws_pax,
-        "seatsConfirmedByDrawingPax": sum(v for k, v in SCHEDULE.items()
-                                          if k in expected),
+        # R007's `8 PAX` on the A1/A2 run. R009 numbers those desks 1-8
+        # instead, so there is no annotation to report.
+        "workstationRunPax": None,
+        # Every desk is numbered on the plan, so every bay's count is the
+        # drawing's own statement rather than a PAX pairing.
+        "seatsConfirmedByDrawingPax": sum(SCHEDULE.values()),
+        "sheetSchedule": bay_rows,
+        "sheetHeadcountByGrade": grade_rows,
+        "roomsFromSheet": rooms_from_sheet,
         "zoneBChairsDetected": zone_b_chairs,
-        "zoneBExpected": 0,
+        "zoneBExpected": zone_b_expected,
         "unassignedChairs": len(unassigned),
         "unassignedChairsByZone": dict(sorted(unassigned_by_zone.items())),
         "bays": report,
@@ -1127,25 +1236,24 @@ def main():
           f"{td:>10}{sum(r['placed'] for r in report):>8}{ti:>8}"
           f"{sum(r['surplusDropped'] for r in report):>9}")
     print()
-    print(f"detection accuracy: {td}/{len(seats)} seats placed from detected "
-          f"geometry ({td / len(seats) * 100:.1f}%), {ti} interpolated")
+    print(f"detection accuracy: {td}/{len(seats)} numbered desks snapped onto a "
+          f"chair block ({td / len(seats) * 100:.1f}%), {ti} left on the label")
     print(f"unassigned chair blocks by zone: "
           f"{dict(sorted(unassigned_by_zone.items()))}")
     print(f"  zone A's surplus is meeting room and lounge seating "
-          f"(25/10/8 pax rooms, reception, sofa, swivel chairs)")
-    print(f"  zone B: {zone_b_chairs} chairs, 0 seats scheduled -- see "
-          f"ASSUMPTIONS A16, this one is NOT explained by the drawing")
+          f"(25/10/7/5/5 pax rooms, reception, sofa, swivel chairs)")
+    print(f"  zone B: {zone_b_chairs} chairs beyond its {zone_b_expected} "
+          f"numbered desks -- the modular lounge seating")
     if sheet_total is not None:
         print(f"the drawing's title block states TOTAL WORKING PEOPLE = "
               f"{sheet_total} PAX, matching the bay schedule")
     if sheet_note:
         print(f'  and, verbatim: "{sheet_note}"')
-    confirmed = sum(v for k, v in SCHEDULE.items() if k in expected)
-    print(f"schedule: {confirmed}/141 seats confirmed by a PAX annotation in "
-          f"the drawing; {unconfirmed} carry no PAX label and rest on the "
-          f"Phase 1 assumption")
-    if drift:
-        print(f"WARNING schedule/drawing drift: {drift}")
+    print(f"schedule: every one of the {len(seats)} desks is numbered on the plan; "
+          f"the title block's own bay schedule ({len(bay_rows)} rows under the "
+          f"R007 names) and grade headcount ({len(grade_rows)} rows) both sum "
+          f"to {sheet_total}")
+    print(f"rooms: {'read off the sheet' if rooms_from_sheet else 'carried forward from R007 (A33)'}")
     print(f"scale: {mm_per_unit} mm per plan unit -- {scale_note}")
 
 

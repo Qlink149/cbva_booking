@@ -33,8 +33,8 @@ export const MIN_BOOKINGS = 2000;
 
 /** From the drawing, and asserted by the geometry tests (A3). */
 export const EXPECTED_ROOMS = 5;
-export const EXPECTED_SEATS = 141;
-export const EXPECTED_USERS = 141;
+export const EXPECTED_SEATS = 158;
+export const EXPECTED_USERS = 158;
 
 /**
  * @param {object} counts - one row of the prod:check query
