@@ -28,6 +28,18 @@ const CHIP_W = 52;
 const CHIP_H = 28;
 
 /**
+ * Below this scale the plan is under ~560px wide, a bay spans barely more
+ * than a chip, and a full-size chip covers the desks it is describing (at 520px
+ * a 52x28 chip is 130x70 plan units over a bay that is 50 across, and
+ * separation had to shove it up to 36 units off). The compact chip is the same
+ * two lines at 38x22 with 8px/10px type: still the bay letter and the
+ * fraction, still opaque, still readable, about 40% less area.
+ */
+const COMPACT_BELOW_SCALE = 0.55;
+const COMPACT_W = 38;
+const COMPACT_H = 22;
+
+/**
  * Bay-level occupancy, drawn only at whole-floor zoom.
  *
  * PRESENTATIONAL, AND AT NO POINT THE ACCESSIBLE PATH. This layer is
@@ -49,8 +61,11 @@ export function BayDensity({
   reduceMotion,
   scale,
 }: BayDensityProps) {
-  const w = CHIP_W / scale;
-  const h = CHIP_H / scale;
+  const compact = scale < COMPACT_BELOW_SCALE;
+  const px = compact ? { w: COMPACT_W, h: COMPACT_H, code: 8, count: 10, barY: 2 }
+    : { w: CHIP_W, h: CHIP_H, code: 9, count: 11, barY: 3 };
+  const w = px.w / scale;
+  const h = px.h / scale;
   // Clamped to the ZONE HULLS, not the plan box. Fit-to-floor frames the hulls,
   // so the plan box extends past the visible area and a chip clamped to it can
   // still land under the container's top edge -- which is exactly what one did.
@@ -109,36 +124,36 @@ export function BayDensity({
                 fraction printed above it is the non-colour differentiator. */}
             <rect
               x={x}
-              y={y + h - 3 / scale}
+              y={y + h - px.barY / scale}
               width={w}
-              height={3 / scale}
+              height={px.barY / scale}
               className="fill-hairline"
             />
             {fraction > 0 && (
               <rect
                 x={x}
-                y={y + h - 3 / scale}
+                y={y + h - px.barY / scale}
                 width={w * fraction}
-                height={3 / scale}
+                height={px.barY / scale}
                 className="fill-navy"
               />
             )}
 
             <text
               x={x + w / 2}
-              y={y + 11 / scale}
+              y={y + (compact ? 8 : 11) / scale}
               textAnchor="middle"
               className="fill-ink-muted font-mono"
-              style={{ fontSize: 9 / scale, letterSpacing: "0.04em" }}
+              style={{ fontSize: px.code / scale, letterSpacing: "0.04em" }}
             >
               {bay.bay}
             </text>
             <text
               x={x + w / 2}
-              y={y + 21 / scale}
+              y={y + (compact ? 17 : 21) / scale}
               textAnchor="middle"
               className="fill-ink"
-              style={{ fontSize: 11 / scale, fontWeight: 600 }}
+              style={{ fontSize: px.count / scale, fontWeight: 600 }}
             >
               {/* A fraction rather than a percentage, so a one-desk bay cannot
                   report "100% full" and read as a crisis. */}

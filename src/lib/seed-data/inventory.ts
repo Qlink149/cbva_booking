@@ -118,8 +118,16 @@ export const BLOCKED_SEAT_CODE = "142";
  *
  * Re-expressed in R009's desk numbers from the R007 allocation: the partners'
  * cabins A1/A2 are now desks 1–8, their C1 run is bay D (26–31) and C2's first
- * two are 32–33; the managers' C2/C4/D6–D8 are 34–35, 45–52 and 113–124; the
- * admin/HR/IT bank C3 is bay F, 36–43; the management cabin D5 is bay O, 112.
+ * two are 32–33; the admin/HR/IT bank C3 is bay F, 36–43; the management
+ * cabin D5 is bay O, 112.
+ *
+ * One deliberate change from a straight translation: R007 left C3 and C4 one
+ * bookable desk short of full (C3-09, C4-09), which on R009 became bays F and
+ * G showing a lone bookable desk each — a "0/1" chip on the floor plan that
+ * reads as a fault rather than as a nearly reserved bay. The managers now take
+ * F's ninth desk (44) and all of G (45–53), and give back R's last two
+ * (123, 124), so F and G are wholly allocated and R keeps two bookable desks.
+ * Same 47 allocated, same 111 who must book; only which desks differ.
  */
 export const FIXED_SEAT_ALLOCATION: Array<{ codes: string[]; grade: Grade }> = [
   { codes: ["112"], grade: "director" },
@@ -136,8 +144,9 @@ export const FIXED_SEAT_ALLOCATION: Array<{ codes: string[]; grade: Grade }> = [
     codes: [
       "34",
       "35", // bay E, last two
-      ...desks(45, 52), // bay G, eight of nine
-      ...desks(113, 124), // bays P, Q, R
+      "44", // bay F, its ninth desk after the admin bank
+      ...desks(45, 53), // bay G, all nine
+      ...desks(113, 122), // bays P, Q and half of R
     ],
     grade: "manager", // 22
   },

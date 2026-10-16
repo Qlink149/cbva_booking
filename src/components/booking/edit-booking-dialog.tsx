@@ -13,6 +13,7 @@
  * offer a desk that is already taken — but it does not rely on that. The
  * refusal comes from the database.
  */
+import { compareSeatCodes } from "@/lib/seat-code";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
@@ -90,7 +91,7 @@ export function EditBookingDialog({
     const free = seats.filter(
       (s) => s.status === "available" || s.status === "auto_released" || s.seatCode === booking?.seatCode,
     );
-    return free.sort((a, b) => a.seatCode.localeCompare(b.seatCode));
+    return free.sort((a, b) => compareSeatCodes(a.seatCode, b.seatCode));
   }, [floor.data, booking?.seatCode]);
 
   if (!booking) return null;

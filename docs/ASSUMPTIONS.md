@@ -76,11 +76,13 @@ allocated seat. Nothing else in Phase 1 is as important as this.
 |---|---|---|
 | Director (management cabin, bay O) | 112 | 1 |
 | Partner | 1–8 (bays A, B), 26–31 (bay D), 32, 33 (bay E) | 16 |
-| Manager | 34, 35 (bay E), 45–52 (bay G), 113–124 (bays P, Q, R) | 22 |
+| Manager | 34, 35 (bay E), 44 (bay F), 45–53 (bay G), 113–122 (bays P, Q, half of R) | 22 |
 | Admin / HR / IT | 36–43 (bay F) | 8 |
 
-Both passage runs (S: 125–142, T: 143–158), Zone B's bay C (9–25) and every
-other open bay stay bookable. Under R007 the same allocation read D5-01;
+Both passage runs (S: 125–142, T: 143–158), Zone B's bay C (9–25), H–N and
+desks 123–124 stay bookable. Bays F and G are wholly allocated (a straight
+translation of R007 left each with one bookable desk, which showed on the floor
+plan as a "0/1" chip that reads as a fault). Under R007 the same allocation read D5-01;
 A1/A2/C1/C2; C2/C4/D6–D8; C3 — this is that allocation translated desk for
 desk, not a new guess.
 

@@ -1,3 +1,4 @@
+import { compareSeatCodes } from "@/lib/seat-code";
 import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -203,7 +204,7 @@ export async function GET(request: Request) {
     };
   });
 
-  seats.sort((a, b) => a.seatCode.localeCompare(b.seatCode));
+  seats.sort((a, b) => compareSeatCodes(a.seatCode, b.seatCode));
 
   const payload: FloorPlanPayload = {
     date,

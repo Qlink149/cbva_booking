@@ -16,6 +16,7 @@
  * conditional statements against the row, never a read-then-write, for exactly
  * the reason ADR-003 gives.
  */
+import { seatCodeOrder } from "@/lib/seat-code-sql";
 import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
 
 import { writeAudit } from "@/lib/audit";
@@ -186,7 +187,7 @@ export async function releasesBetween(
     ${RELEASE_ROW}
     where r.release_date between ${from}::date and ${to}::date
       and r.revoked_at is null
-    order by r.release_date, s.seat_code, r.slot`);
+    order by r.release_date, ${seatCodeOrder(sql`s.seat_code`)}, r.slot`);
   return (rows.rows as Record<string, unknown>[]).map(toRow);
 }
 

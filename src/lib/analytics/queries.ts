@@ -11,6 +11,7 @@
  * cannot express without being harder to read than the SQL it produces. The
  * shapes are narrow and the parameters are all bound.
  */
+import { seatCodeOrder } from "@/lib/seat-code-sql";
 import { sql } from "drizzle-orm";
 
 import {
@@ -412,7 +413,7 @@ export async function bookingRows(
       (b.series_id is not null) as recurring
     ${FROM}
     where ${whereClause(f)}
-    order by b.booking_date desc, b.slot, s.seat_code
+    order by b.booking_date desc, b.slot, ${seatCodeOrder(sql`s.seat_code`)}
     limit ${limit}`);
 
   return (rows.rows as Record<string, unknown>[]).map((r) => ({
@@ -489,7 +490,7 @@ export async function seatUtilisation(
     left join users bu on bu.id = b.occupant_user_id
     where ${sql.join(seatFilters, sql` and `)}
     group by s.seat_code, s.bay, z.code, s.status
-    order by z.code, s.bay, s.seat_code`);
+    order by z.code, s.bay, ${seatCodeOrder(sql`s.seat_code`)}`);
 
   return (rows.rows as Record<string, unknown>[]).map((r) => {
     const slotsClaimed = Number(r.slots_claimed ?? 0);

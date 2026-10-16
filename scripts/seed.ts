@@ -292,6 +292,10 @@ async function main() {
      keeps a re-run safe both after a code change and when run twice unchanged. */
   await db.delete(schema.roomBookings);
   await db.delete(schema.bookings);
+  // Seat releases are generated history too, and their ids are not stable
+  // across a change of owner or allocation, so an upsert leaves the old rows
+  // beside the new ones (12 became 24 when R009 rebalanced the allocation).
+  await db.delete(schema.seatReleases);
 
   /* ---- retire desks the drawing no longer has ----
      Seats are upserted on seat_code, which is exactly right while the codes are
@@ -525,6 +529,19 @@ async function main() {
     list.push(u);
     byGrade.set(u.grade, list);
   }
+
+  /* The allocation is a pure function of inventory.ts, and upserting seats
+     never touches `status`, so a CHANGE to the allocation would otherwise
+     leave the old one in place beside the new one (R009's rebalance of bays
+     F, G and R did exactly that to a seeded database). Reset every
+     allocated or blocked desk to the pool first, then apply. This is the demo
+     seed, which already rebuilds bookings wholesale; hand edits made in
+     /admin/seats on a seeded database go with it. */
+  await db
+    .update(schema.seats)
+    .set({ status: "bookable", assignedUserId: null })
+    .where(inArray(schema.seats.status, ["fixed", "blocked"]));
+  await db.update(schema.users).set({ fixedSeatId: null });
 
   let fixedPairs = 0;
   /** seatCode -> the person allocated it. Reused by the seeded releases below. */

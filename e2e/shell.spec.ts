@@ -72,7 +72,7 @@ test("styleguide shows every seat status with a non-colour cue", async ({ page }
   }
 
   // The swatches are exposed to assistive tech, not just painted.
-  await expect(page.getByRole("img", { name: "Seat C3-04: Your booking" }).first()).toBeVisible();
+  await expect(page.getByRole("img", { name: "Seat 37: Your booking" }).first()).toBeVisible();
 });
 
 test("skip link is reachable by keyboard", async ({ page }) => {
