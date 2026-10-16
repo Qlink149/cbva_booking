@@ -329,7 +329,7 @@ export function FloorClient() {
               <Switch
                 id="show-occupancy-labels"
                 label="Occupancy labels"
-                description="Bay counts, e.g. “A1 0/2”, at whole-floor zoom."
+                description="Bookable desks taken per bay, e.g. “H 3/9”, at whole-floor zoom. A bay with no chip is fully allocated to fixed-seat staff."
                 checked={showOccupancyLabels}
                 onCheckedChange={setShowOccupancyLabels}
               />

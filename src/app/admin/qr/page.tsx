@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 
 import { auth } from "@/lib/adapters";
 import { db, schema } from "@/lib/db";
@@ -41,7 +41,8 @@ export default async function Page() {
     .from(schema.seats)
     .innerJoin(schema.zones, eq(schema.seats.zoneId, schema.zones.id))
     .where(inArray(schema.seats.status, ["bookable"]))
-    .orderBy(asc(schema.seats.seatCode));
+    // Numeric order (1, 2 … 158), not text order (1, 10, 100 …).
+    .orderBy(sql`length(${schema.seats.seatCode})`, asc(schema.seats.seatCode));
 
   const codes = await Promise.all(
     seats.map(async (seat) => ({

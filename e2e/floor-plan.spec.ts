@@ -22,8 +22,8 @@ test("renders all 158 seats and no CAD paths in the live DOM", async ({ page }) 
 
 test("a seat announces itself with code, zone, bay and status", async ({ page }) => {
   await openFloor(page);
-  const label = await page.locator("[data-seat='C3-01']").getAttribute("aria-label");
-  expect(label).toMatch(/^Seat C3-01, Zone C, bay C3, /);
+  const label = await page.locator("[data-seat='36']").getAttribute("aria-label");
+  expect(label).toMatch(/^Seat 36, Zone C, bay F, /);
 });
 
 test("reserved fixed seats are not clickable and name their occupant", async ({ page }) => {
@@ -63,14 +63,14 @@ test("a seat is reachable by keyboard and arrows move within the bay", async ({ 
 
 test("hovering a seat shows its card", async ({ page }) => {
   await openFloor(page);
-  await page.locator("[data-seat='C3-01']").hover();
+  await page.locator("[data-seat='36']").hover();
   // The card is aria-hidden — the seat button's own accessible name already
   // says all of this, so it is visual reinforcement, not a second
   // announcement. Located by attribute rather than by role for that reason.
-  const card = page.locator("[data-seat-card='C3-01']");
+  const card = page.locator("[data-seat-card='36']");
   await expect(card).toBeVisible();
   await expect(card).toContainText("Zone C");
-  await expect(card).toContainText("Bay C3");
+  await expect(card).toContainText("Bay F");
 });
 
 test("clicking an available seat opens the booking flow", async ({ page }) => {
@@ -154,9 +154,9 @@ test("at whole-floor zoom the plan shows bay occupancy, not per-seat status", as
   // Every seat is STILL a button with its name. This is the assertion that
   // matters: the accessible path does not degrade with the rendering.
   await expect(page.locator("[data-seat]")).toHaveCount(158);
-  await expect(page.locator("[data-seat='C3-01']")).toHaveAttribute(
+  await expect(page.locator("[data-seat='36']")).toHaveAttribute(
     "aria-label",
-    /^Seat C3-01, Zone C, bay C3, /,
+    /^Seat 36, Zone C, bay F, /,
   );
 
   // The bay chips are present, readable, and none covers another. An
@@ -310,5 +310,7 @@ test("the admin editor loads and reports the per-bay detection", async ({ page }
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 
   // The per-bay reconciliation is on the page, not only in the handoff doc.
-  await expect(page.getByRole("table")).toContainText("Zone B");
+  // Zone B now carries 17 numbered desks (bay C), so it is an ordinary row:
+  // bay, zone, drawing pax, scheduled, detected (cell text runs together).
+  await expect(page.getByRole("table")).toContainText("CB171717");
 });

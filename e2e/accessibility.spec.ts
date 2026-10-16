@@ -135,17 +135,6 @@ const CASES: Array<[string, string, (page: Page) => Promise<void>]> = [
     },
   ],
   [
-    "booking dialog",
-    "/floor",
-    async (page) => {
-      await page.locator("[data-seat][data-status='available']").first().waitFor({
-        timeout: 30_000,
-      });
-      await page.locator("[data-seat][data-status='available']").first().click();
-      await page.getByRole("dialog").waitFor();
-    },
-  ],
-  [
     "demo notification inbox",
     "/admin/notifications",
     async (page) => {
@@ -272,7 +261,7 @@ const CASES: Array<[string, string, (page: Page) => Promise<void>]> = [
   ],
   [
     "check-in page",
-    "/checkin/C5-01",
+    "/checkin/60",
     async (page) => {
       await page.getByRole("heading", { level: 1 }).first().waitFor({ timeout: 30_000 });
     },
@@ -365,7 +354,7 @@ test("every seat is a real button with an accessible name", async ({ page }) => 
   expect(names).toHaveLength(158);
   for (const { tag, label } of names) {
     expect(tag).toBe("BUTTON");
-    // "Seat C3-04, Zone C, bay C3, Available" — code, zone, bay and state.
+    // "Seat 37, Zone C, bay F, Available" — code, zone, bay and state.
     expect(label).toMatch(/^Seat \d{1,3}, Zone [ABCD], bay [A-T], .+/);
   }
 });

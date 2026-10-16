@@ -1,3 +1,4 @@
+import { compareSeatCodes } from "@/lib/seat-code";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -72,7 +73,7 @@ export async function POST() {
         source: changed ? ("manual" as const) : (original?.source ?? "manual"),
       };
     })
-    .sort((a, b) => a.seatCode.localeCompare(b.seatCode));
+    .sort((a, b) => compareSeatCodes(a.seatCode, b.seatCode));
 
   const dest = path.join(process.cwd(), "src", "data", "floorplan", "seats.json");
   await writeFile(

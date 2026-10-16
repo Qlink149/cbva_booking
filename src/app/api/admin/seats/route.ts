@@ -1,3 +1,4 @@
+import { seatCodeOrder } from "@/lib/seat-code-sql";
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
         join zones z on z.id = s.zone_id
         left join users u on u.id = s.assigned_user_id
         where ${sql.join(filters, sql` and `)}
-        order by z.code, s.bay, s.seat_code`),
+        order by z.code, s.bay, ${seatCodeOrder(sql`s.seat_code`)}`),
       // The next fortnight of releases, so the inventory can show which
       // allocated desks are temporarily in the pool.
       releasesBetween(ctx.db, today, shiftDays(today, 14)),
